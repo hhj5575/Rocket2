@@ -1,0 +1,27 @@
+#domain
+patch       0
+bc_type     0
+Gamma       1.4d0
+GasConst    287d0
+PrLam       0.72d0
+PrTurb      0.9d0
+MuRef       1.716d-5
+TempRef     273d0
+TempEff     111d0
+LengthRef   100d0
+pstatic     108987.393d0
+tstatic     255.5555d0
+Mach        0.729d0
+AOA         2.31d0
+
+#Farfield
+patch       2
+bc_type     6
+pstatic     108987.393d0
+tstatic     255.5555d0
+Mach        0.729d0
+AOA         2.31d0
+
+#Wall
+patch       3
+bc_type     2

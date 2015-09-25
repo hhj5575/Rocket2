@@ -1,0 +1,29 @@
+#domain
+patch       0
+bc_type     0
+Gamma       1.4d0
+GasConst    287d0
+PrLam       0.72d0
+PrTurb      0.9d0
+MuRef       1.716d-5
+TempRef     273d0
+TempEff     111d0
+LengthRef   1d0
+pstatic     101325d0
+tstatic     300d0
+Mach        0.5
+AOA         0d0
+
+#inviscid_wall
+patch       4
+bc_type     1
+
+#right_outflow
+patch       3
+bc_type     5
+pstatic     0.1d0
+
+#left_outflow
+patch       2
+bc_type     5
+pstatic     1d0

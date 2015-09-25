@@ -1,0 +1,37 @@
+#domain
+patch       0
+bc_type     0
+Gamma       1.1435d0
+GasConst    281.2693d0
+PrLam       0.72d0
+PrTurb      0.9d0
+MuRef       1.716d-5
+TempRef     273d0
+TempEff     111d0
+LengthRef   0.4d0
+pstatic     101325d0
+tstatic     300d0
+Mach        0d0
+AOA         0d0
+
+#body
+patch       15
+bc_type     1
+
+#Axi_wall
+patch       13
+bc_type     8
+
+#propellant
+patch       14
+bc_type     10
+
+#Nozzle
+patch       25
+bc_type     9
+pstatic     101325d0
+
+#Monitor
+patch       17
+bc_type     12
+pmemb       6894733.26d0

@@ -1,0 +1,36 @@
+Burning Input File
+============Control=====================
+Surface_Burning     :   0
+Film_Model          :   1
+Burning_Model       :   1
+L&R_Model           :   1
+k_ero_method        :   2
+=========Solid Propellant===============
+rhoc(kg_m^3)        :   1800d0
+MW(g_mol)           :   29.56d0
+alfac(m^2_s)        :   0.0000001d0
+Cp(kcal_kg-K)       :   0.35d0
+T_init(K)           :   300d0
+T_ignite(K)         :   500d0
+Tstar0(K)           :   3533d0
+==========Film Coefficient==============
+film(kcal_m^2-s-K)  :   4.7769d0
+k()                 :   1.0d0
+Prandtl_Number()    :   1.0d0
+Viscosity()         :   1.0d0
+============APN Model===================
+a_APN_Model(m_s)    :   0.0080325d0
+n_APN_Model         :   0.3345d0
+============ZN Model====================
+============L&R Model===================
+alpha               :   1.0d0
+beta                :   53d0
+k_ero               :   0.5d0
+StepInd             :   0.1d0
+StepMag             :   1.0d0
+============Numerics====================
+MaximumIteration    :   200
+============Nozzle Ablation=============
+StartTime(s)        :   0d0
+Coeff(m_s_psi^0.8)  :   2.727d-7
+========================================

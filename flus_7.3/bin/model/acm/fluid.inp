@@ -1,0 +1,22 @@
+Fluid Simulation Input File
+================Grid===================
+Grid_Format         :   2
+Grid_FileName       :   "./input/2d_old.fdneut"
+=============Simulation================
+Restart_Flag        :   F
+Move_Grid           :   F
+Print_Interval      :   50
+===============Solver==================
+Flow_Model          :   1
+Flux_Scheme         :   2
+Limiter_Scheme      :   2
+vkt                 :   0.1d0
+===============Time====================
+Time_Scheme         :   3
+Unsteady            :   T
+DualTimeStep        :   F
+LocalTimeStep       :   F
+CFL                 :   0.8d0
+CFL_DualTime        :   5.0d0
+Error               :  -8.0d0
+=======================================

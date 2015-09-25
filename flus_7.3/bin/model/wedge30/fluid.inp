@@ -1,0 +1,22 @@
+Fluid Simulation Input File
+================Grid===================
+Grid_Format         :   1
+Grid_FileName       :   "./input/2d.msh"
+=============Simulation================
+Restart_Flag        :   F
+Move_Grid           :   F
+Print_Interval      :   1
+===============Solver==================
+Flow_Model          :   1
+Flux_Scheme         :   2
+Limiter_Scheme      :   3
+vkt                 :   5d0
+===============Time====================
+Time_Scheme         :   4
+Unsteady            :   F
+DualTimeStep        :   F
+LocalTimeStep       :   T
+CFL                 :   1d4
+CFL_DualTime        :   5.0d0
+Error               :  -10d0
+=======================================

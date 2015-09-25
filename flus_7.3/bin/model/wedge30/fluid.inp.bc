@@ -1,0 +1,53 @@
+#domain
+patch       0
+bc_type     0
+Gamma       1.4d0
+GasConst    287d0
+PrLam       0.72d0
+PrTurb      0.9d0
+MuRef       1.716d-5
+TempRef     273d0
+TempEff     111d0
+LengthRef   1d0
+pstatic     101325d0
+tstatic     300d0
+Mach        3d0
+AOA         0d0
+
+#Farfield
+patch       2
+bc_type     6
+pstatic     101325d0
+tstatic     300d0
+mach        3d0
+angle       0d0
+
+#Outflow
+patch       3
+bc_type     5
+press       101325d0
+
+#Symmetric
+patch       4
+bc_type     1
+
+#Wall
+patch       5
+bc_type     1
+
+#Outflow2
+patch       41
+bc_type     5
+press       101325d0
+
+#Farfield2
+patch       51
+bc_type     6
+pstatic     101325d0
+tstatic     300d0
+mach        3d0
+angle       0d0
+
+#Symmetric2
+patch       61
+bc_type     1
