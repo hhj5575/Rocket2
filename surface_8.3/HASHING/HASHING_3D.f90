@@ -198,7 +198,7 @@ MODULE HASHING_3D
             DO J=1,HASH0%HASH_NUM2
                 DO K=1,HASH0%HASH_NUM3
                     NULLIFY(HASH0%ELEMENT(I,J,K)%HEAD)
-                    HASH0%ELEMENT%NUM = 0
+                    HASH0%ELEMENT(I,J,K)%NUM = 0
                 END DO
             END DO
         END DO

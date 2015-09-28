@@ -1930,7 +1930,7 @@ write(*,*) 'collapsing_edge:', i
         INTEGER, DIMENSION(:,:) :: EDGE(:,:)
 	INTEGER, DIMENSION(:) :: EDGE_LOCATION(:)
         
-        REAL(8), ALLOCATABLE :: NEWPOINT(:,:)
+        !REAL(8), ALLOCATABLE :: NEWPOINT(:,:)
 
         
         REAL(8), ALLOCATABLE :: SURFACE_INITIAL_EDGE_LENGTH(:)
