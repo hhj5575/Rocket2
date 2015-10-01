@@ -775,7 +775,6 @@
 
             J1 = SURFACE_CURRENT%SURFACE_FACES(K,I)
             J2 = SURFACE_CURRENT%SURFACE_FACES(MOD(K,3)+1,I)
-
             IF(ANGLE > 30. * PI/180.) THEN
                 RIDGE_EDGE(K,I) = .TRUE.
                 !ELSE IF((NEW_POINT_TYPE(J1) == 4 .OR. NEW_POINT_TYPE(J1)==6) .AND. (NEW_POINT_TYPE(J2) == 4 .OR. NEW_POINT_TYPE(J2) == 6)) THEN
@@ -893,7 +892,7 @@
                 END IF
             END DO
 
-            IF(RIDGE_EDGE_NUM < 1) THEN
+            IF(RIDGE_EDGE_NUM <= 1) THEN
                 IF(NEW_POINT_TYPE(J)==2) THEN
                     B = .TRUE.
                     NEW_POINT_TYPE(J) = 1
@@ -905,10 +904,9 @@
             DO K=1,3
                 J1 = SURFACE_CURRENT%SURFACE_FACES(K,I)
                 J2 = SURFACE_CURRENT%SURFACE_FACES(MOD(K,3)+1,I)
-
+                                   
                 IF(RIDGE_EDGE(K,I) .AND. (NEW_POINT_TYPE(J1)==1 .OR. NEW_POINT_TYPE(J2)==1)) THEN
                     B = .TRUE.
-
                     RIDGE_EDGE(K,I) = .FALSE.
                 END IF
             END DO

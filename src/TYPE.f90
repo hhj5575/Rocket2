@@ -1,0 +1,149 @@
+MODULE SRMS_TYPE_MOD
+
+IMPLICIT NONE
+
+INTERFACE
+  ! FLUS Subroutine Interface
+  SUBROUTINE FLUS(Dim, OP, InitialTime, MaximumTime, nBNode, nBFace, Bxyz, Bf2n, BPatch, BCFlag, InVars, OutVars, Ref_Pressure)
+    INTEGER, INTENT(in   ) :: Dim, OP
+    REAL(8), INTENT(in   ) :: InitialTime
+    REAL(8), INTENT(in   ) :: MaximumTime
+    INTEGER, INTENT(inout) :: nBNode, nBFace
+    REAL(8), INTENT(inout), ALLOCATABLE :: Bxyz(:,:)
+    INTEGER, INTENT(inout), ALLOCATABLE :: Bf2n(:,:)
+    INTEGER, INTENT(inout), ALLOCATABLE :: BPatch(:)
+    INTEGER, INTENT(inout), ALLOCATABLE :: BCFlag(:)
+    REAL(8), INTENT(inout), ALLOCATABLE :: InVars(:,:)
+    REAL(8), INTENT(inout), ALLOCATABLE :: OutVars(:,:)
+    REAL(8), INTENT(  out) :: Ref_Pressure
+  END SUBROUTINE
+  ! FEM_GXL Subroutine Interface
+  SUBROUTINE FEM_GXL(Dim, solid_flag, current_step, delta_t, n_remesh, remesh_num, &
+                    PROPEL_PATCH, PROPEL_REMESH_FLAG, PROPEL_CORNER, PROPEL_EDGE_LENGTH, &
+                    PROPEL_POINT_NUM, PROPEL_EDGE_NUM, PROPEL_POINT, PROPEL_EDGE, PROPEL_PLOAD, PROPEL_DISP, &
+                    PROPEL_RIDGE_GROUP_NUM, PROPEL_RIDGE_NUM, PROPEL_RIDGE, &
+                    CASE_POINT_NUM, CASE_EDGE_NUM, CASE_POINT, CASE_EDGE, CASE_PLOAD, CASE_DISP)
+    INTEGER, INTENT(in   ) :: Dim, solid_flag
+    REAL(8), INTENT(in   ) :: delta_t
+    INTEGER, INTENT(inout) :: current_step
+    INTEGER, INTENT(inout) :: n_remesh, remesh_num
+    INTEGER, INTENT(inout):: PROPEL_POINT_NUM, PROPEL_EDGE_NUM, PROPEL_RIDGE_GROUP_NUM
+    INTEGER, INTENT(inout), ALLOCATABLE :: PROPEL_PATCH(:)
+    INTEGER, INTENT(inout), ALLOCATABLE :: PROPEL_CORNER(:)
+	INTEGER, INTENT(inout), ALLOCATABLE :: PROPEL_RIDGE_NUM(:)
+    INTEGER, INTENT(inout), ALLOCATABLE :: PROPEL_RIDGE(:,:)
+    REAL(8), INTENT(inout), ALLOCATABLE :: PROPEL_EDGE_LENGTH(:)
+    INTEGER, INTENT(inout), ALLOCATABLE :: PROPEL_EDGE(:,:)
+    INTEGER, INTENT(inout), ALLOCATABLE :: PROPEL_REMESH_FLAG(:)
+    REAL(8), INTENT(inout), ALLOCATABLE :: PROPEL_POINT(:,:)
+    REAL(8), INTENT(inout), ALLOCATABLE :: PROPEL_DISP(:,:)
+    REAL(8), INTENT(inout), ALLOCATABLE :: PROPEL_PLOAD(:,:)
+    INTEGER, INTENT(inout) :: CASE_POINT_NUM, CASE_EDGE_NUM
+    INTEGER, INTENT(inout), ALLOCATABLE :: CASE_EDGE(:,:)
+    REAL(8), INTENT(inout), ALLOCATABLE :: CASE_POINT(:,:)
+    REAL(8), INTENT(inout), ALLOCATABLE :: CASE_DISP(:,:)
+    REAL(8), INTENT(inout), ALLOCATABLE :: CASE_PLOAD(:,:)
+  END SUBROUTINE
+  ! SURFACE Subroutine Interface
+  SUBROUTINE SURFACE(Dim, TYPE1, TYPE2, TIMESTEP, &
+    F_POINT_NUM, F_POINT, F_EDGE_NUM, F_EDGE, F_LOC, F_B_RATE, F_PRESSURE, F_BCFLAG, &
+    P_POINT_NUM, P_POINT, P_EDGE_NUM, P_EDGE, P_LOC, P_VELOCITY, P_DISPLACEMENT, P_FORCE, P_EDGE_LENGTH, P_CORNER_INDEX, P_RIDGE_GROUP_NUM, P_RIDGE_NUM, P_RIDGE,&
+    C_POINT_NUM, C_POINT, C_EDGE_NUM, C_EDGE, C_VELOCITY, C_DISPLACEMENT, C_FORCE, &
+    FLAG, FLAG_ARRAY, FILENUM, PATCHNUM)
+    INTEGER :: Dim
+    INTEGER, OPTIONAL :: TYPE1
+    INTEGER, OPTIONAL :: TYPE2
+    REAL(8), OPTIONAL :: TIMESTEP
+    INTEGER, OPTIONAL :: F_POINT_NUM
+    REAL(8), ALLOCATABLE, OPTIONAL :: F_POINT(:,:)
+    INTEGER, OPTIONAL :: F_EDGE_NUM
+    INTEGER, ALLOCATABLE, OPTIONAL :: F_EDGE(:,:)
+    INTEGER, ALLOCATABLE, OPTIONAL :: F_LOC(:)
+    REAL(8), OPTIONAL :: F_B_RATE(:)
+    REAL(8), OPTIONAL :: F_PRESSURE(:)
+    INTEGER, OPTIONAL :: F_BCFLAG(:)
+    INTEGER, OPTIONAL :: P_POINT_NUM
+    REAL(8), ALLOCATABLE, OPTIONAL :: P_POINT(:,:)
+    INTEGER, OPTIONAL :: P_EDGE_NUM
+    INTEGER, ALLOCATABLE, OPTIONAL :: P_EDGE(:,:)
+    INTEGER, ALLOCATABLE, OPTIONAL :: P_LOC(:)
+    REAL(8), OPTIONAL :: P_VELOCITY(:,:)
+    REAL(8), OPTIONAL :: P_DISPLACEMENT(:,:)
+    REAL(8), OPTIONAL :: P_FORCE(:,:)
+    REAL(8), ALLOCATABLE, OPTIONAL :: P_EDGE_LENGTH(:)
+    INTEGER, ALLOCATABLE, OPTIONAL :: P_CORNER_INDEX(:)
+    INTEGER, OPTIONAL :: P_RIDGE_GROUP_NUM
+    INTEGER, ALLOCATABLE, OPTIONAL :: P_RIDGE_NUM(:)
+    INTEGER, ALLOCATABLE, OPTIONAL :: P_RIDGE(:,:)
+    INTEGER, OPTIONAL :: C_POINT_NUM
+    REAL(8), ALLOCATABLE, OPTIONAL :: C_POINT(:,:)
+    INTEGER, OPTIONAL :: C_EDGE_NUM
+    INTEGER, ALLOCATABLE, OPTIONAL :: C_EDGE(:,:)
+    REAL(8), OPTIONAL :: C_VELOCITY(:,:)
+    REAL(8), OPTIONAL :: C_DISPLACEMENT(:,:)
+    REAL(8), OPTIONAL :: C_FORCE(:,:)
+    LOGICAL, OPTIONAL :: FLAG
+    INTEGER, ALLOCATABLE, OPTIONAL :: FLAG_ARRAY(:)
+    INTEGER, OPTIONAL :: FILENUM
+    INTEGER, OPTIONAL :: PATCHNUM
+  END SUBROUTINE
+END INTERFACE
+
+TYPE t_Control
+  INTEGER :: Dim
+  REAL(8) :: InitialTime
+  REAL(8) :: TargetTime
+  REAL(8) :: SystemTimeStep
+  INTEGER :: IterMax
+  INTEGER :: OutputIteration
+END TYPE t_Control
+
+TYPE t_Region
+  LOGICAL :: n_remesh
+  INTEGER :: nBNode, nBFace
+  REAL(8), ALLOCATABLE :: xyz(:,:)
+  REAL(8), ALLOCATABLE :: fc(:,:)
+  INTEGER, ALLOCATABLE :: f2n(:,:)
+  INTEGER, ALLOCATABLE :: Patch(:)
+  ! for fluid region
+  INTEGER, ALLOCATABLE :: BcFlag(:)
+  REAL(8), ALLOCATABLE :: InVars(:,:)
+  REAL(8), ALLOCATABLE :: OutVars(:,:)
+  REAL(8) :: Prop_Dens
+  REAL(8) :: Ref_Pressure
+  REAL(8) :: MIN_DIST, MAX_DIST, AVE_DIST
+  ! for solid region
+  INTEGER :: ridge_group_num = 0
+  INTEGER, ALLOCATABLE :: ridge_num(:)
+  INTEGER, ALLOCATABLE :: ridge(:,:)
+  INTEGER, ALLOCATABLE :: Remesh_flag(:)
+  INTEGER, ALLOCATABLE :: Cluster(:)
+  INTEGER, ALLOCATABLE :: Corner_Index(:)
+  REAL(8), ALLOCATABLE :: Edge_Length(:)
+  REAL(8), ALLOCATABLE :: Disp(:,:)
+  REAL(8), ALLOCATABLE :: pLoad(:,:)
+END TYPE
+
+TYPE(t_Control) :: Control
+TYPE(t_Region)  :: Fluid
+TYPE(t_Region)  :: SCase
+TYPE(t_Region)  :: SProp
+
+! Surface Variables
+INTEGER :: PATCHNUM
+LOGICAL :: TEMPFLAG
+
+! Solid Variables
+INTEGER :: iter_solid
+INTEGER :: n_remesh, remesh_num
+INTEGER :: patch_num
+INTEGER, ALLOCATABLE :: patch_remesh_flag(:)
+
+! Time Variables
+INTEGER :: iter, restart_iteration
+REAL(8) :: Time, dTmin
+
+! Regression rate control
+REAL(8) :: regression_rate_x
+
+END MODULE SRMS_TYPE_MOD
