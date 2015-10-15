@@ -1,0 +1,2043 @@
+MODULE OPERATORS_2D
+
+    USE SURFACE_MODULE_2D
+    USE SURFACES_2D
+    USE SVD
+    IMPLICIT NONE
+
+    CONTAINS
+    
+    SUBROUTINE PROJECTION_SURFACE_POINT_TYPE(V, TYP, COORD)
+
+        REAL(8) :: V(2)
+        INTEGER :: TYP
+        REAL(8) :: COORD
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT
+        
+        IF (TYP==0) THEN
+            SURFACE_CURRENT => SURFACE_FLUID
+        END IF
+        IF (TYP==1) THEN
+            SURFACE_CURRENT => SURFACE_PROPEL
+        END IF
+        IF (TYP==2) THEN
+            SURFACE_CURRENT => SURFACE_CASE
+        END IF
+        
+        CALL PROJECTION_SURFACE_POINT(V, SURFACE_CURRENT%SURFACE_POINTS_NUM, SURFACE_CURRENT%SURFACE_POINTS, SURFACE_CURRENT%SURFACE_EDGES_NUM, SURFACE_CURRENT%SURFACE_EDGES, COORD)
+  
+    END SUBROUTINE PROJECTION_SURFACE_POINT_TYPE
+
+    SUBROUTINE DISTANCE_SURFACE_POINT_TYPE(V,TYP,       RET)
+	IMPLICIT NONE
+        REAL(8) :: V(2)
+        INTEGER :: TYP
+        REAL(8) :: RET
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT
+        
+        IF (TYP==0) THEN
+            SURFACE_CURRENT => SURFACE_FLUID
+        END IF
+        IF (TYP==1) THEN
+            SURFACE_CURRENT => SURFACE_PROPEL
+        END IF
+        IF (TYP==2) THEN
+            SURFACE_CURRENT => SURFACE_CASE
+        END IF
+        
+        CALL DISTANCE_SURFACE_POINT(SURFACE_CURRENT%SURFACE_POINTS_NUM, SURFACE_CURRENT%SURFACE_POINTS, SURFACE_CURRENT%SURFACE_EDGES_NUM, SURFACE_CURRENT%SURFACE_EDGES, V, RET)
+        
+    END SUBROUTINE DISTANCE_SURFACE_POINT_TYPE
+    
+    SUBROUTINE DISTANCE_SURFACE_EDGE_TYPE(I0,TYP1,TYP2,DIR,  R,IDX)
+	IMPLICIT NONE
+        INTEGER :: I0, IDX, DIR
+        INTEGER :: TYP1, TYP2
+        REAL(8) :: R, V1(2), V2(2), V(2), L(2), T
+        
+        INTEGER :: I, NUM, SGN
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT1
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT2
+        
+        IF (TYP1==0) THEN
+            SURFACE_CURRENT1 => SURFACE_FLUID
+        END IF
+        IF (TYP1==1) THEN
+            SURFACE_CURRENT1 => SURFACE_PROPEL
+        END IF
+        IF (TYP1==2) THEN
+            SURFACE_CURRENT1 => SURFACE_CASE
+        END IF
+        
+        IF (TYP2==0) THEN
+            SURFACE_CURRENT2 => SURFACE_FLUID
+        END IF
+        IF (TYP2==1) THEN
+            SURFACE_CURRENT2 => SURFACE_PROPEL
+        END IF
+        IF (TYP2==2) THEN
+            SURFACE_CURRENT2 => SURFACE_CASE
+        END IF
+        
+        V1 = SURFACE_CURRENT1%SURFACE_POINTS(:,SURFACE_CURRENT1%SURFACE_EDGES(1,I0))
+        V2 = SURFACE_CURRENT1%SURFACE_POINTS(:,SURFACE_CURRENT1%SURFACE_EDGES(2,I0))
+        V = (V1 + V2) / 2.
+        IF(DIR==0) THEN
+            L(1) = V1(2)-V2(2)
+            L(2) = V2(1)-V1(1)
+        ELSE
+            L(1) = V2(2)-V1(2)
+            L(2) = V1(1)-V2(1)
+        END IF
+        
+        NUM = 0
+        L = L/SQRT(DOT_PRODUCT(L,L))
+
+        DO I=1,SURFACE_CURRENT2%SURFACE_EDGES_NUM
+            IF(TYP1==TYP2 .AND. I0==I) THEN
+            ELSE
+                CALL LINE_EDGE_INTERSECTING(SURFACE_CURRENT2%SURFACE_POINTS_NUM, SURFACE_CURRENT2%SURFACE_POINTS, SURFACE_CURRENT2%SURFACE_EDGES_NUM, SURFACE_CURRENT2%SURFACE_EDGES,I,L,V,SGN,T)
+                
+                IF (SGN.NE.-2 .AND. SGN.NE.-3 .AND. T > - SURFACE_FLUID%MESH_SIZE/10.) THEN
+                    NUM = NUM+1
+                    IF(NUM==1) THEN
+                        R = T
+                        IDX = I
+                    ELSE IF(T < R) THEN
+                        R = T
+                        IDX = I
+                    END IF
+                END IF
+            END IF
+        END DO
+        
+        IF(NUM==0) THEN
+            IDX = 0
+        END IF
+        
+    END SUBROUTINE DISTANCE_SURFACE_EDGE_TYPE
+    
+    SUBROUTINE DISTANCE_EDGE_EDGE_TYPE(I0,TYP1,J0,TYP2,DIR,  R,B)
+        IMPLICIT NONE
+        INTEGER :: TYP1, TYP2
+        LOGICAL :: B
+        INTEGER :: I0, J0, DIR
+        REAL(8) :: R, V1(2), V2(2), V(2), L(2)
+        INTEGER :: SGN
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT1
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT2
+        
+        IF (TYP1==0) THEN
+            SURFACE_CURRENT1 => SURFACE_FLUID
+        END IF
+        IF (TYP1==1) THEN
+            SURFACE_CURRENT1 => SURFACE_PROPEL
+        END IF
+        IF (TYP1==2) THEN
+            SURFACE_CURRENT1 => SURFACE_CASE
+        END IF
+        
+        IF (TYP2==0) THEN
+            SURFACE_CURRENT2 => SURFACE_FLUID
+        END IF
+        IF (TYP2==1) THEN
+            SURFACE_CURRENT2 => SURFACE_PROPEL
+        END IF
+        IF (TYP2==2) THEN
+            SURFACE_CURRENT2 => SURFACE_CASE
+        END IF
+        
+        IF(TYP1==TYP2 .AND. I0==J0) THEN
+            R = 0.
+            B = .FALSE.
+            RETURN
+        END IF
+        
+        V1 = SURFACE_CURRENT1%SURFACE_POINTS(:,SURFACE_CURRENT1%SURFACE_EDGES(1,I0))
+        V2 = SURFACE_CURRENT1%SURFACE_POINTS(:,SURFACE_CURRENT1%SURFACE_EDGES(2,I0))
+        V = (V1 + V2) / 2.
+        IF(DIR==0) THEN
+            L(1) = V1(2)-V2(2)
+            L(2) = V2(1)-V1(1)
+        ELSE
+            L(1) = V2(2)-V1(2)
+            L(2) = V1(1)-V2(1)
+        END IF
+       
+        L = L/SQRT(DOT_PRODUCT(L,L))
+        
+        CALL LINE_EDGE_INTERSECTING(SURFACE_CURRENT2%SURFACE_POINTS_NUM, SURFACE_CURRENT2%SURFACE_POINTS, SURFACE_CURRENT2%SURFACE_EDGES_NUM, SURFACE_CURRENT2%SURFACE_EDGES, J0, L, V, SGN, R)
+        
+        IF(SGN.NE.-2 .AND. SGN.NE.-3 .AND. R > -SURFACE_FLUID%MESH_SIZE/10.) THEN
+            B = .TRUE.
+        ELSE
+            B = .FALSE.
+        END IF
+        
+    END SUBROUTINE DISTANCE_EDGE_EDGE_TYPE
+    
+    SUBROUTINE FIND_IMPACT_ZONE(TYP1, TYP2)
+        IMPLICIT NONE
+        INTEGER :: TYP1, TYP2
+        
+        INTEGER :: I, IDX, DIR, J1, J2, J11, J22 
+	!integer :: J111, J222
+        REAL(8) :: R 
+	!real(8) :: RMIN
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT
+        
+        IF (TYP1==0) THEN
+            SURFACE_CURRENT => SURFACE_FLUID
+        END IF
+        IF (TYP1==1) THEN
+            SURFACE_CURRENT => SURFACE_PROPEL
+        END IF
+        IF (TYP1==2) THEN
+            SURFACE_CURRENT => SURFACE_CASE
+        END IF
+        
+        IF(TYP1==TYP2) THEN
+            DIR = 0
+        ELSE
+            DIR = 1
+        END IF
+        
+        SURFACE_CURRENT%EDGE_IMPACT_ZONE(TYP2+1, :) = 0
+        
+        DO I=1,SURFACE_CURRENT%SURFACE_EDGES_NUM
+            CALL DISTANCE_SURFACE_EDGE_TYPE(I,TYP1,TYP2,DIR,  R,IDX)
+	    J1 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT%SURFACE_EDGES(1,I))
+            J2 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT%SURFACE_EDGES(2,I))
+	    J11 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT%SURFACE_EDGES(1,J1))
+	    J22 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT%SURFACE_EDGES(2,J2))
+
+            IF(TYP1 .NE. TYP2) THEN
+                SURFACE_CURRENT%EDGE_IMPACT_ZONE(TYP2+1, I) = IDX
+            ELSE IF(IDX .NE. I .AND. IDX .NE. J1 .AND. IDX .NE. J2 .AND. IDX .NE. J11 .AND. IDX .NE. J22) THEN
+                SURFACE_CURRENT%EDGE_IMPACT_ZONE(TYP2+1, I) = IDX
+                !WRITE(*,*) 'minimum impact distance : ', RMIN
+            END IF
+            IF(TYP1==TYP2 .AND. IDX==0) THEN
+                WRITE(*,*) 'ERROR'
+            END IF
+        END DO
+
+        !DO I=1,SURFACE_CURRENT%SURFACE_EDGES_NUM
+        !    CALL DISTANCE_SURFACE_EDGE_TYPE(I,TYP1,TYP2,DIR,  R,IDX)
+	 !   J1 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT%SURFACE_EDGES(1,I))
+         !   J2 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT%SURFACE_EDGES(2,I))
+	  !  J11 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT%SURFACE_EDGES(1,J1))
+	   ! J22 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT%SURFACE_EDGES(2,J2))
+	    !J111 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT%SURFACE_EDGES(1,J11))
+	    !J222 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT%SURFACE_EDGES(2,J22))
+        !    IF(TYP1 .NE. TYP2) THEN
+        !        SURFACE_CURRENT%EDGE_IMPACT_ZONE(TYP2+1, I) = IDX
+            !ELSE IF(IDX .NE. I .AND. IDX .NE. J1 .AND. IDX .NE. J2 .AND. IDX .NE. J11 .AND. IDX .NE. J22 .AND. IDX .NE. J111 .AND. IDX .NE. J222) THEN
+        !    ELSE IF(IDX .NE. I .AND. IDX .NE. J1 .AND. IDX .NE. J2 .AND. IDX .NE. J11 .AND. IDX .NE. J22) THEN
+        !        SURFACE_CURRENT%EDGE_IMPACT_ZONE(TYP2+1, I) = IDX
+                !WRITE(*,*) 'minimum impact distance : ', RMIN
+        !    END IF
+        !    IF(TYP1==TYP2 .AND. IDX==0) THEN
+        !        WRITE(*,*) 'ERROR'
+        !    END IF
+        ! END DO
+        
+    END SUBROUTINE FIND_IMPACT_ZONE
+
+    SUBROUTINE UPDATE_IMPACT_ZONE(TYP1, TYP2)
+        IMPLICIT NONE
+        INTEGER :: TYP1, TYP2
+        
+        INTEGER :: I, J, DIR, J0, IPZ
+        REAL(8) :: R
+        LOGICAL :: B, FLAG
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT1, SURFACE_CURRENT2
+        
+        IF (TYP1==0) THEN
+            SURFACE_CURRENT1 => SURFACE_FLUID
+        END IF
+        IF (TYP1==1) THEN
+            SURFACE_CURRENT1 => SURFACE_PROPEL
+        END IF
+        IF (TYP1==2) THEN
+            SURFACE_CURRENT1 => SURFACE_CASE
+        END IF
+        
+        IF (TYP2==0) THEN
+            SURFACE_CURRENT2 => SURFACE_FLUID
+        END IF
+        IF (TYP2==1) THEN
+            SURFACE_CURRENT2 => SURFACE_PROPEL
+        END IF
+        IF (TYP2==2) THEN
+            SURFACE_CURRENT2 => SURFACE_CASE
+        END IF
+        
+        IF(TYP1==TYP2) THEN
+            DIR = 0
+        ELSE
+            DIR = 1
+        END IF
+        
+        DO I=1,SURFACE_CURRENT1%SURFACE_EDGES_NUM
+            IPZ = SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I)
+            
+            FLAG = .FALSE.
+            IF(IPZ==0) THEN
+                FLAG = .TRUE.
+            ELSE
+!               DO J=1,3
+!		    IF(J==1) THEN
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,IPZ))
+!                    ELSE IF(J==2) THEN
+!                        J0 = IPZ
+!                    ELSE 
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,IPZ))
+!                    END IF
+                    
+!                    CALL DISTANCE_EDGE_EDGE_TYPE(I,TYP1,J0,TYP2,DIR,  R,B)
+
+!                    IF(B) THEN
+
+!                        IF(TYP1.NE.TYP2) THEN
+!                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = J0
+!                            FLAG = .TRUE.
+!                            EXIT
+!                        ELSE IF(B .AND. J0 .NE. I .AND. J0 .NE. &
+!                                SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,I)) .AND. J0 .NE. SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,I))) THEN
+!                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = J0
+!                            FLAG = .TRUE.
+!                            EXIT
+!                        ELSE
+!                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = 0
+!                        END IF
+!                    END IF
+!                END DO
+!	     END IF
+                DO J=1,5
+	        IF(J==1) THEN
+				J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,IPZ))
+			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,J0))
+                    ELSE IF(J==2) THEN
+                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,IPZ))
+                    ELSE IF(J==3) THEN
+                        J0 = IPZ
+                    ELSE IF(J==4) THEN
+                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,IPZ))
+		    ELSE
+			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,IPZ))
+			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,J0))
+                    END IF
+                    
+                    CALL DISTANCE_EDGE_EDGE_TYPE(I,TYP1,J0,TYP2,DIR,  R,B)
+
+                    IF(B) THEN
+
+                        IF(TYP1.NE.TYP2) THEN
+                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = J0
+                            FLAG = .TRUE.
+                            EXIT
+                        ELSE IF(B .AND. J0 .NE. I .AND. J0 .NE. &
+                                SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,I)) .AND. J0 .NE. SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,I)) .AND. &
+				J0 .NE. SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,I)))) .AND. &
+				J0 .NE. SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,I))))) THEN
+                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = J0
+                            FLAG = .TRUE.
+                            EXIT
+                        ELSE
+                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = 0
+                        END IF
+                    END IF
+                END DO
+                END IF
+            
+            IF(.NOT. FLAG) THEN
+                !WRITE(*,*) 'ERROR'
+                !CALL DISTANCE_SURFACE_EDGE_TYPE(I,TYP1,TYP2,DIR,  R,IDX)
+                SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = 0
+            END IF
+        END DO
+        
+    END SUBROUTINE UPDATE_IMPACT_ZONE
+
+    
+!    SUBROUTINE UPDATE_IMPACT_ZONE(TYP1, TYP2)
+        
+!        INTEGER :: TYP1, TYP2
+        
+!        INTEGER :: I, J, DIR, I1, I11, I111, I2, I22, I222, J0, J1, J11, J111, J2, J22, J222, IPZ
+!        REAL(8) :: R
+!        LOGICAL :: B, FLAG
+        
+!        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT1, SURFACE_CURRENT2
+        
+!        IF (TYP1==0) THEN
+!            SURFACE_CURRENT1 => SURFACE_FLUID
+!        END IF
+!        IF (TYP1==1) THEN
+!            SURFACE_CURRENT1 => SURFACE_PROPEL
+!        END IF
+!        IF (TYP1==2) THEN
+!            SURFACE_CURRENT1 => SURFACE_CASE
+!        END IF
+        
+!        IF (TYP2==0) THEN
+!            SURFACE_CURRENT2 => SURFACE_FLUID
+!        END IF
+!        IF (TYP2==1) THEN
+!            SURFACE_CURRENT2 => SURFACE_PROPEL
+!        END IF
+!        IF (TYP2==2) THEN
+!            SURFACE_CURRENT2 => SURFACE_CASE
+!        END IF
+        
+!        IF(TYP1==TYP2) THEN
+!            DIR = 0
+!        ELSE
+!            DIR = 1
+!        END IF
+        
+!        DO I=1,SURFACE_CURRENT1%SURFACE_EDGES_NUM
+!            IPZ = SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I)
+            
+!            FLAG = .FALSE.
+!            IF(IPZ==0) THEN
+!                FLAG = .TRUE.
+!            ELSE
+!               DO J=1,3
+!		    IF(J==1) THEN
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,IPZ))
+!                    ELSE IF(J==2) THEN
+!                        J0 = IPZ
+!                    ELSE 
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,IPZ))
+!                    END IF
+                    
+!                    CALL DISTANCE_EDGE_EDGE_TYPE(I,TYP1,J0,TYP2,DIR,  R,B)
+
+!                    IF(B) THEN
+
+!                        IF(TYP1.NE.TYP2) THEN
+!                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = J0
+!                            FLAG = .TRUE.
+!                            EXIT
+!                        ELSE IF(B .AND. J0 .NE. I .AND. J0 .NE. &
+!                                SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,I)) .AND. J0 .NE. SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,I))) THEN
+!                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = J0
+!                            FLAG = .TRUE.
+!                            EXIT
+!                        ELSE
+!                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = 0
+!                        END IF
+!                    END IF
+!                END DO
+!	     END IF
+
+!               DO J=1,5
+!		    IF(J==1) THEN
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,IPZ))
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,J0))
+!                    ELSE IF(J==2) THEN
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,IPZ))
+!                    ELSE IF(J==3) THEN
+!                        J0 = IPZ
+!                    ELSE IF(J==4) THEN
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,IPZ))
+!		    ELSE
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,IPZ))
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,J0))
+!                    END IF
+ 
+
+!                DO J=1,7 
+!	            IF(J==1) THEN
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,IPZ))
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,J0))
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,J0))
+!                   ELSE IF(J==2) THEN
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,IPZ))
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,J0))
+!		    ELSE IF(J==3) THEN
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,IPZ))
+!                    ELSE IF(J==4) THEN
+!                        J0 = IPZ
+!                    ELSE IF(J==5) THEN
+!                        J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,IPZ))
+!		    ELSE IF(J==6) THEN
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,IPZ))
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,J0))
+!		    ELSE
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,IPZ))
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,J0))
+!			J0 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,J0))
+!                   END IF
+                    
+!                    CALL DISTANCE_EDGE_EDGE_TYPE(I,TYP1,J0,TYP2,DIR,  R,B)
+
+!                    IF(B) THEN
+!			I1 = SURFACE_CURRENT2%SURFACE_EDGES(1,I)
+!			J1 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,I1)
+!			I11 = SURFACE_CURRENT2%SURFACE_EDGES(1,J1)
+!			J11 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,I11)
+!			I111 = SURFACE_CURRENT2%SURFACE_EDGES(1,J11) 
+!			J111 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,I111)
+
+!			I2 = SURFACE_CURRENT2%SURFACE_EDGES(2,I)
+!			J2 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,I2)
+!			I22 = SURFACE_CURRENT2%SURFACE_EDGES(2,J2)
+!			J22 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,I22)
+!			I222 = SURFACE_CURRENT2%SURFACE_EDGES(2,J22) 
+!			J222 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,I222)
+
+!                        IF(TYP1.NE.TYP2) THEN
+ !                           SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = J0
+  !                          FLAG = .TRUE.
+   !                         EXIT
+                        !ELSE IF(B .AND. J0 .NE. I .AND. J0 .NE. J1 .AND. J0 .NE. J11 .AND. J0 .NE. J111 .AND. J0 .NE. J2 .AND. J0 .NE. J22 .AND. J0 .NE. J222) THEN
+!			ELSE IF(B .AND. J0 .NE. I .AND. J0 .NE. J1 .AND. J0 .NE. J11 .AND. J0 .NE. J2 .AND. J0 .NE. J22) THEN
+!                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = J0
+!                            FLAG = .TRUE.
+!                            EXIT
+!                        ELSE
+!                            SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = 0
+!                        END IF
+!                    END IF
+!                END DO
+            
+!            IF(.NOT. FLAG) THEN
+!                WRITE(*,*) 'ERROR'
+                !CALL DISTANCE_SURFACE_EDGE_TYPE(I,TYP1,TYP2,DIR,  R,IDX)
+!                SURFACE_CURRENT1%EDGE_IMPACT_ZONE(TYP2+1, I) = 0
+!            END IF
+!	   END IF
+!        END DO
+        
+!    END SUBROUTINE UPDATE_IMPACT_ZONE
+    
+    SUBROUTINE POINT_EDGE_CONNECTING(TYP)
+        IMPLICIT NONE
+        INTEGER :: TYP
+        
+        INTEGER :: POINT_NUM
+        INTEGER :: EDGE_NUM
+        INTEGER, POINTER, DIMENSION(:,:) :: EDGE
+        INTEGER, POINTER, DIMENSION(:,:) :: CONNECTION
+        
+        INTEGER :: I
+        
+        IF (TYP==0) THEN
+            POINT_NUM = SURFACE_FLUID%SURFACE_POINTS_NUM
+            EDGE_NUM = SURFACE_FLUID%SURFACE_EDGES_NUM
+            EDGE => SURFACE_FLUID%SURFACE_EDGES
+            CONNECTION => SURFACE_FLUID%POINT_EDGE_CONNECTION
+        END IF
+        IF (TYP==1) THEN
+            POINT_NUM = SURFACE_PROPEL%SURFACE_POINTS_NUM
+            EDGE_NUM = SURFACE_PROPEL%SURFACE_EDGES_NUM
+            EDGE => SURFACE_PROPEL%SURFACE_EDGES
+            CONNECTION => SURFACE_PROPEL%POINT_EDGE_CONNECTION
+        END IF
+        IF (TYP==2) THEN
+            POINT_NUM = SURFACE_CASE%SURFACE_POINTS_NUM
+            EDGE_NUM = SURFACE_CASE%SURFACE_EDGES_NUM
+            EDGE => SURFACE_CASE%SURFACE_EDGES
+            CONNECTION => SURFACE_CASE%POINT_EDGE_CONNECTION
+        END IF
+        
+	!$OMP PARALLEL DO PRIVATE(I)
+        DO I=1,EDGE_NUM
+            CONNECTION(2,EDGE(1,I)) = I
+            CONNECTION(1,EDGE(2,I)) = I
+        END DO
+        !$OMP END PARALLEL DO
+        
+    END SUBROUTINE POINT_EDGE_CONNECTING
+    
+    
+    SUBROUTINE FIND_POINT_TYPE(TYP)
+	IMPLICIT NONE
+        INTEGER :: TYP
+        
+        REAL(8), ALLOCATABLE :: EDGE_LENGTH(:)
+        
+        INTEGER :: I,J,K,L
+        INTEGER :: I1,I2, J1,J2
+        REAL(8) :: R1,R2
+        REAL(8) :: V1(2),V2(2)
+        REAL(8), ALLOCATABLE :: NORMAL(:,:)
+        
+        REAL(8) :: N(2,2), W(2)
+        REAL(8) :: W_SUM
+        
+        REAL(8) :: E_VALUE(2)
+        REAL(8) :: E_VECTOR(2,2), DUMMY(2,2)
+        
+        REAL(8) :: TEMP_E_VALUE, TEMP_E_VECTOR(2)
+        
+        REAL(8) :: THETA_A !CHI_C_LOW, CHI_C_HIGH
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT
+        
+        IF (TYP==0) THEN
+            SURFACE_CURRENT => SURFACE_FLUID
+        END IF
+        IF (TYP==1) THEN
+            SURFACE_CURRENT => SURFACE_PROPEL
+        END IF
+        IF (TYP==2) THEN
+            SURFACE_CURRENT => SURFACE_CASE
+        END IF
+        
+        ALLOCATE(EDGE_LENGTH(SURFACE_CURRENT%SURFACE_EDGES_NUM))
+        ALLOCATE(NORMAL(2,SURFACE_CURRENT%SURFACE_EDGES_NUM))
+        
+	!$OMP PARALLEL DO PRIVATE(I,I1,I2,V1)
+        DO I=1,SURFACE_CURRENT%SURFACE_EDGES_NUM
+            
+            I1 = SURFACE_CURRENT%SURFACE_EDGES(1,I)
+            I2 = SURFACE_CURRENT%SURFACE_EDGES(2,I)
+            
+            V1 = SURFACE_CURRENT%SURFACE_POINTS(:,I2) - SURFACE_CURRENT%SURFACE_POINTS(:,I1)
+            
+            NORMAL(1,I) = V1(2)
+            NORMAL(2,I) = -V1(1)
+            
+            EDGE_LENGTH(I) = SQRT(DOT_PRODUCT(NORMAL(:,I), NORMAL(:,I)))
+            
+            NORMAL(:,I) = NORMAL(:,I)/EDGE_LENGTH(I)            
+        END DO
+        !$OMP END PARALLEL DO
+        
+        DO I=1,SURFACE_CURRENT%SURFACE_POINTS_NUM
+            
+            W_SUM = 0.
+            DO J = 1,2
+                W_SUM = W_SUM + EDGE_LENGTH(SURFACE_CURRENT%POINT_EDGE_CONNECTION(J,I))
+            END DO
+            
+            DO J = 1,2
+                N(J,:) = NORMAL(:,SURFACE_CURRENT%POINT_EDGE_CONNECTION(J,I))
+                W(J) = EDGE_LENGTH(SURFACE_CURRENT%POINT_EDGE_CONNECTION(J,I)) / W_SUM
+            END DO
+            
+            DO K=1,2
+                DO L=1,2
+                    E_VECTOR(K,L) = 0.
+                    DO J = 1,2
+                        E_VECTOR(K,L) = E_VECTOR(K,L) + W(J)*N(J,K)*N(J,L)
+                    END DO
+                END DO
+            END DO
+            
+            ! COMPUTING EIGEN VALUE & EIGEN VECTOR OF LS_MATRIX
+            
+            CALL SVDCMP(E_VECTOR,2,2,2,2,E_VALUE,DUMMY)
+            
+            IF(E_VALUE(2)>E_VALUE(1)) THEN
+                TEMP_E_VALUE = E_VALUE(1)
+                TEMP_E_VECTOR = E_VECTOR(:,1)
+                    
+                E_VALUE(1) = E_VALUE(2)
+                E_VECTOR(:,1) = E_VECTOR(:,2)
+                    
+                E_VALUE(2) = TEMP_E_VALUE
+                E_VECTOR(:,2) = TEMP_E_VECTOR(:)
+            END IF
+            
+            I1 = SURFACE_CURRENT%SURFACE_EDGES(1,SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,I))
+            I2 = SURFACE_CURRENT%SURFACE_EDGES(2,SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,I))
+            
+            V1 = SURFACE_CURRENT%SURFACE_POINTS(:,I1) - SURFACE_CURRENT%SURFACE_POINTS(:,I)
+            V2 = SURFACE_CURRENT%SURFACE_POINTS(:,I2) - SURFACE_CURRENT%SURFACE_POINTS(:,I)
+            
+            THETA_A = ACOS(MAX(-1.,MIN(1.,DOT_PRODUCT(V1,V2)/SQRT(DOT_PRODUCT(V1,V1) * DOT_PRODUCT(V2,V2)))) ) - PI
+            !THETA_A = PI/3.
+            !CHI_C_LOW = 0.003
+            !CHI_C_HIGH = 0.1
+    	    !if(i==92) then
+	    !write(*,*) e_value(2)/e_value(1)
+	    !end if
+
+            IF(ABS(THETA_A) >= PI/2.) THEN
+                SURFACE_CURRENT%POINT_TYPE(I) = 2
+	    !ELSE IF(SURFACE_CURRENT%POINT_TYPE(I) .EQ. 3 .AND. ) THEN
+
+            ELSE IF(E_VALUE(2)/E_VALUE(1) > CHI_C_HIGH) THEN
+                SURFACE_CURRENT%POINT_TYPE(I) = 2
+            ELSE IF(E_VALUE(2)/E_VALUE(1) > CHI_C_LOW) THEN
+		!if(i==545) then
+		!write(*,*) e_value(2)/e_value(1)
+		!end if
+                SURFACE_CURRENT%POINT_TYPE(I) = -1
+            ELSE
+                SURFACE_CURRENT%POINT_TYPE(I) = 1
+            END IF
+            
+            J1 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,I)
+            J2 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,I)	    
+            
+	    IF(TYP.NE.2) THEN
+                DO J=0,2
+                    !IF((SURFACE_CURRENT%EDGE_ONINTERFACE(J1) .NE. SURFACE_CURRENT%EDGE_ONINTERFACE(J2)) .AND. SURFACE_CURRENT%EDGE_ONINTERFACE(J1) .NE. -1 .AND. SURFACE_CURRENT%EDGE_ONINTERFACE(J2) .NE. -1) THEN
+                    IF((SURFACE_CURRENT%EDGE_ONINTERFACE(J1) .NE. SURFACE_CURRENT%EDGE_ONINTERFACE(J2))) THEN
+                        SURFACE_CURRENT%POINT_TYPE(I) = 3
+                    END IF
+                END DO
+            ELSE
+                IF(SURFACE_CURRENT%EDGE_ONINTERFACE(SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,I))==0 .XOR. SURFACE_CURRENT%EDGE_ONINTERFACE(SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,I))==0 ) THEN
+                    SURFACE_CURRENT%POINT_TYPE(I) = 3
+                END IF
+            END IF
+
+        END DO
+        
+        DO I=1,SURFACE_CURRENT%SURFACE_POINTS_NUM
+            IF(SURFACE_CURRENT%POINT_TYPE(I)==-1) THEN
+                J1 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,I)
+                J2 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,I)
+                I1 = SURFACE_CURRENT%SURFACE_EDGES(1,J1)
+                I2 = SURFACE_CURRENT%SURFACE_EDGES(2,J2)
+                R1 = SQRT(DOT_PRODUCT(SURFACE_CURRENT%SURFACE_POINTS(:,I) - SURFACE_CURRENT%SURFACE_POINTS(:,I1), SURFACE_CURRENT%SURFACE_POINTS(:,I) - SURFACE_CURRENT%SURFACE_POINTS(:,I1)))
+                R2 = SQRT(DOT_PRODUCT(SURFACE_CURRENT%SURFACE_POINTS(:,I) - SURFACE_CURRENT%SURFACE_POINTS(:,I2), SURFACE_CURRENT%SURFACE_POINTS(:,I) - SURFACE_CURRENT%SURFACE_POINTS(:,I2)))
+                IF(SURFACE_CURRENT%POINT_TYPE(I1)==3 .AND. R1 < SURFACE_CURRENT%SURFACE_INITIAL_EDGE_LENGTH(J1)/1.3) THEN
+                    SURFACE_CURRENT%POINT_TYPE(I) = 1
+                ELSE IF(SURFACE_CURRENT%POINT_TYPE(I2)==3 .AND. R2 < SURFACE_CURRENT%SURFACE_INITIAL_EDGE_LENGTH(J2)/1.3) THEN
+                    SURFACE_CURRENT%POINT_TYPE(I) = 1
+                ELSE
+                    SURFACE_CURRENT%POINT_TYPE(I) = 2
+                END IF
+            END IF
+        END DO
+        
+        DEALLOCATE(NORMAL)
+        DEALLOCATE(EDGE_LENGTH)
+        
+    END SUBROUTINE FIND_POINT_TYPE
+    
+    SUBROUTINE FIND_PATCH_NUM(TYP)
+	IMPLICIT NONE
+        INTEGER :: TYP
+	INTEGER :: PATCH_NUM
+	INTEGER :: I,J
+	LOGICAL :: B
+	REAL(8), ALLOCATABLE :: TEMP(:)
+        
+       
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT
+        
+        IF (TYP==0) THEN
+            SURFACE_CURRENT => SURFACE_FLUID
+        END IF
+        IF (TYP==1) THEN
+            SURFACE_CURRENT => SURFACE_PROPEL
+        END IF
+        IF (TYP==2) THEN
+            SURFACE_CURRENT => SURFACE_CASE
+        END IF
+        
+        PATCH_NUM = 0
+	ALLOCATE(TEMP(SURFACE_CURRENT%SURFACE_EDGES_NUM)) 
+
+           DO I = 1, SURFACE_CURRENT%SURFACE_EDGES_NUM
+		B = .TRUE.
+	    	IF(I .EQ. 1) THEN
+	          PATCH_NUM = PATCH_NUM + 1
+	          TEMP(PATCH_NUM) = SURFACE_CURRENT%EDGE_LOCATION(I) 
+	    	ELSE 
+	       	   DO J = 1, PATCH_NUM
+	             IF(SURFACE_CURRENT%EDGE_LOCATION(I) .EQ. TEMP(J)) THEN
+			B = .FALSE.
+			EXIT
+		     END IF
+		   END DO
+		     IF(B) THEN
+			PATCH_NUM = PATCH_NUM + 1
+			TEMP(PATCH_NUM) = SURFACE_CURRENT%EDGE_LOCATION(I) 
+			EXIT
+	             END IF
+            	END IF
+            END DO
+        
+	SURFACE_CURRENT%SURFACE_PATCHES_NUM = PATCH_NUM
+
+!	IF (TYP .EQ.1) THEN
+!	   SURFACE_CURRENT%SURFACE_PATCHES_NUM = 1
+!	END IF
+
+    END SUBROUTINE FIND_PATCH_NUM
+    
+    SUBROUTINE FIND_INTERFACE(TYP)
+	IMPLICIT NONE
+        INTEGER::TYP
+        
+        REAL(8), ALLOCATABLE :: PHI(:)
+        
+        INTEGER :: I,J, I1, I2
+        REAL(8) :: R
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT
+        
+        IF (TYP==0) THEN
+            SURFACE_CURRENT => SURFACE_FLUID
+        END IF
+        IF (TYP==1) THEN
+            SURFACE_CURRENT => SURFACE_PROPEL
+        END IF
+        IF (TYP==2) THEN
+            SURFACE_CURRENT => SURFACE_CASE
+        END IF
+        
+        SURFACE_CURRENT%EDGE_ONINTERFACE(:) = -1
+        ALLOCATE(PHI(SURFACE_CURRENT%SURFACE_POINTS_NUM))
+        
+        DO J = 0,2
+            IF(TYP/=J) THEN
+                DO I = 1, SURFACE_CURRENT%SURFACE_POINTS_NUM
+                    CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CURRENT%SURFACE_POINTS(:,I),J,PHI(I))
+                END DO
+                
+                DO I = 1, SURFACE_CURRENT%SURFACE_EDGES_NUM
+                    I1 = SURFACE_CURRENT%SURFACE_EDGES(1,I)
+                    I2 = SURFACE_CURRENT%SURFACE_EDGES(2,I)
+                    R = SQRT(DOT_PRODUCT(SURFACE_CURRENT%SURFACE_POINTS(:,I1) - SURFACE_CURRENT%SURFACE_POINTS(:,I2), SURFACE_CURRENT%SURFACE_POINTS(:,I1) - SURFACE_CURRENT%SURFACE_POINTS(:,I2)))
+                    
+                    IF(ABS(PHI(SURFACE_CURRENT%SURFACE_EDGES(1,I)))<R/10. .AND. ABS(PHI(SURFACE_CURRENT%SURFACE_EDGES(2,I)))<R/10.) THEN
+                        SURFACE_CURRENT%EDGE_ONINTERFACE(I) = J
+                    END IF
+                
+                END DO
+                
+            END IF
+        END DO
+        
+        CALL COLLAPSE_INTERFACE(TYP)
+        
+        DEALLOCATE(PHI)
+        
+    END SUBROUTINE FIND_INTERFACE
+    
+    SUBROUTINE COLLAPSE_INTERFACE(TYP)
+	IMPLICIT NONE
+        INTEGER :: TYP
+    
+        INTEGER :: I, J1, J2, I1, I2, ITER
+        
+        INTEGER :: CURRENT_EDGE, INITIAL_EDGE
+        INTEGER :: BEFORE_ONINTERFACE_TYPE
+        INTEGER :: AFTER_ONINTERFACE_TYPE
+        INTEGER :: CURRENT_ONINTERFACE_TYPE
+        INTEGER, ALLOCATABLE :: EDGE_CLUSTER(:)
+        INTEGER :: EDGE_CLUSTER_NUM
+
+        LOGICAL :: B1, B2
+        INTEGER :: PATCH_NUM
+        INTEGER, ALLOCATABLE :: INITIAL_CURRENT_EDGES(:)
+
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT
+        
+        IF (TYP==0) THEN
+            SURFACE_CURRENT => SURFACE_FLUID
+        END IF
+        IF (TYP==1) THEN
+            SURFACE_CURRENT => SURFACE_PROPEL
+        END IF
+        IF (TYP==2) THEN
+            SURFACE_CURRENT => SURFACE_CASE
+        END IF
+        
+        ALLOCATE(EDGE_CLUSTER(SURFACE_CURRENT%SURFACE_EDGES_NUM))
+        
+        
+        IF(TYP==1) THEN
+            ALLOCATE(INITIAL_CURRENT_EDGES(100))
+            PATCH_NUM = 0
+            B1 = .TRUE.
+            DO WHILE(B1)
+               B1 = .FALSE.
+               DO I = 1, SURFACE_CURRENT%SURFACE_EDGES_NUM
+                   IF(SURFACE_CURRENT%EDGE_LOCATION(I)==PATCH_NUM + 1) THEN
+                       PATCH_NUM = PATCH_NUM + 1
+                       INITIAL_CURRENT_EDGES(PATCH_NUM) = I
+                       B1 = .TRUE.
+                       EXIT
+                   END IF
+               END DO
+            END DO
+        ELSE
+            PATCH_NUM = 1
+            ALLOCATE(INITIAL_CURRENT_EDGES(1))
+            INITIAL_CURRENT_EDGES(1) = 1
+        END IF
+        DO ITER = 1, PATCH_NUM
+            
+            CURRENT_EDGE = INITIAL_CURRENT_EDGES(ITER)
+            
+            CURRENT_ONINTERFACE_TYPE = SURFACE_CURRENT%EDGE_ONINTERFACE(CURRENT_EDGE)
+            B1 = .TRUE.
+            DO WHILE(B1)
+                J1 = SURFACE_CURRENT%SURFACE_EDGES(1,CURRENT_EDGE)
+                I1 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,J1)
+                
+                IF(SURFACE_CURRENT%EDGE_ONINTERFACE(I1).NE.CURRENT_ONINTERFACE_TYPE) THEN
+                    B1 = .FALSE.
+                END IF
+                
+                IF(B1) THEN
+                    CURRENT_EDGE = I1
+                END IF
+            END DO
+            
+            INITIAL_EDGE = CURRENT_EDGE
+            
+            B2 = .TRUE.
+            DO WHILE(B2)
+                J1 = SURFACE_CURRENT%SURFACE_EDGES(1,CURRENT_EDGE)
+                I1 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,J1)
+                BEFORE_ONINTERFACE_TYPE = SURFACE_CURRENT%EDGE_ONINTERFACE(I1)
+                
+                EDGE_CLUSTER_NUM = 0
+                CURRENT_ONINTERFACE_TYPE = SURFACE_CURRENT%EDGE_ONINTERFACE(CURRENT_EDGE)
+                B1 = .TRUE.
+                DO WHILE(B1)
+                    IF(CURRENT_ONINTERFACE_TYPE==-1) THEN
+                        EDGE_CLUSTER_NUM = EDGE_CLUSTER_NUM + 1
+                        EDGE_CLUSTER(EDGE_CLUSTER_NUM) = CURRENT_EDGE
+                    END IF
+                    
+                    J2 = SURFACE_CURRENT%SURFACE_EDGES(2,CURRENT_EDGE)
+                    I2 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,J2)
+                    
+                    IF(SURFACE_CURRENT%EDGE_ONINTERFACE(I2).NE.CURRENT_ONINTERFACE_TYPE) THEN
+                        B1 = .FALSE.
+                    END IF
+                    
+                    CURRENT_EDGE = I2
+                END DO
+                AFTER_ONINTERFACE_TYPE = SURFACE_CURRENT%EDGE_ONINTERFACE(CURRENT_EDGE)
+                
+                IF(CURRENT_ONINTERFACE_TYPE == -1 .AND. BEFORE_ONINTERFACE_TYPE == AFTER_ONINTERFACE_TYPE .AND. EDGE_CLUSTER_NUM < 30) THEN
+		    !$OMP PARALLEL DO PRIVATE(I)
+                    DO I=1,EDGE_CLUSTER_NUM
+                        SURFACE_CURRENT%EDGE_ONINTERFACE(EDGE_CLUSTER(I)) = BEFORE_ONINTERFACE_TYPE
+                    END DO
+		    !$OMP END PARALLEL DO
+                END IF
+                
+                IF(CURRENT_EDGE==INITIAL_EDGE) THEN
+                    B2 = .FALSE.
+                END IF
+            END DO
+        END DO
+            
+        DEALLOCATE(INITIAL_CURRENT_EDGES)
+        DEALLOCATE(EDGE_CLUSTER)
+        
+    END SUBROUTINE COLLAPSE_INTERFACE
+    
+    !! MODIFIED
+    !SUBROUTINE UPDATE_INTERFACE(TYP, FLAG)
+    !    
+    !    INTEGER :: TYP
+    !    LOGICAL :: FLAG
+    !    
+    !    REAL(8) :: PHI1, PHI2
+    !    
+    !    INTEGER :: I,J, I1,I2
+    !    
+    !    TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT
+    !
+    !    INTEGER, ALLOCATABLE :: TEMP_ONINTERFACE(:)
+    !    
+    !    IF (TYP==0) THEN
+    !        SURFACE_CURRENT => SURFACE_FLUID
+    !    END IF
+    !    IF (TYP==1) THEN
+    !        SURFACE_CURRENT => SURFACE_PROPEL
+    !    END IF
+    !    IF (TYP==2) THEN
+    !        SURFACE_CURRENT => SURFACE_CASE
+    !    END IF
+    !    
+    !    FLAG = .FALSE.
+    !    
+    !    ALLOCATE(TEMP_ONINTERFACE(SURFACE_CURRENT%SURFACE_EDGES_NUM))
+    !    TEMP_ONINTERFACE(:) = -1.
+    !    
+    !    DO J = 0,2
+    !        IF(TYP/=J) THEN
+    !            DO I = 1, SURFACE_CURRENT%SURFACE_EDGES_NUM
+    !                I1 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT%SURFACE_EDGES(1,I))
+    !                I2 = SURFACE_CURRENT%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT%SURFACE_EDGES(2,I))
+    !                IF((SURFACE_CURRENT%EDGE_ONINTERFACE(I)==J .AND. &
+    !                    (.NOT. SURFACE_CURRENT%EDGE_ONINTERFACE(I1)==J .OR. .NOT. SURFACE_CURRENT%EDGE_ONINTERFACE(I2)==J)) .OR. &
+    !                    (.NOT. SURFACE_CURRENT%EDGE_ONINTERFACE(I)==J .AND. &
+    !                    (SURFACE_CURRENT%EDGE_ONINTERFACE(I1)==J .OR. SURFACE_CURRENT%EDGE_ONINTERFACE(I2)==J))) THEN
+    !                    
+    !                    CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CURRENT%SURFACE_POINTS(:,SURFACE_CURRENT%SURFACE_EDGES(1,I)),J,PHI1)
+    !                    CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CURRENT%SURFACE_POINTS(:,SURFACE_CURRENT%SURFACE_EDGES(2,I)),J,PHI2)
+    !                    
+    !                    IF(ABS(PHI1)<SURFACE_FLUID%MESH_SIZE/10. .AND. ABS(PHI2)<SURFACE_FLUID%MESH_SIZE/10.) THEN
+    !                        TEMP_ONINTERFACE(I) = J
+    !                    END IF
+    !                ELSE
+    !                    TEMP_ONINTERFACE(I) = SURFACE_CURRENT%EDGE_ONINTERFACE(I)
+    !                END IF
+    !            END DO
+    !        END IF
+    !    END DO
+    !            
+    !    DO I = 1, SURFACE_CURRENT%SURFACE_EDGES_NUM
+    !        IF(SURFACE_CURRENT%EDGE_ONINTERFACE(I) .NE. TEMP_ONINTERFACE(I)) THEN
+    !            FLAG = .TRUE.
+    !        END IF
+    !        
+    !        SURFACE_CURRENT%EDGE_ONINTERFACE(I) = TEMP_ONINTERFACE(I)
+    !    END DO
+    !    
+    !    DEALLOCATE(TEMP_ONINTERFACE)
+    !
+    !END SUBROUTINE UPDATE_INTERFACE
+    
+    SUBROUTINE UPDATE_CASE_INTERFACE(FLAG)
+        IMPLICIT NONE
+        LOGICAL :: FLAG
+        
+        REAL(8) :: PHI1, PHI2, PHI3, PHI4
+        
+        INTEGER :: I, I1,I2
+        INTEGER, ALLOCATABLE :: TEMP_ONINTERFACE(:)
+        
+        FLAG = .FALSE.
+        
+        ALLOCATE(TEMP_ONINTERFACE(SURFACE_CASE%SURFACE_EDGES_NUM))
+        
+        DO I = 1, SURFACE_CASE%SURFACE_EDGES_NUM
+            I1 = SURFACE_CASE%POINT_EDGE_CONNECTION(1,SURFACE_CASE%SURFACE_EDGES(1,I))
+            I2 = SURFACE_CASE%POINT_EDGE_CONNECTION(2,SURFACE_CASE%SURFACE_EDGES(2,I))
+            IF((SURFACE_CASE%EDGE_ONINTERFACE(I)==1 .AND. SURFACE_CASE%EDGE_ONINTERFACE(I1)==0) .OR. (SURFACE_CASE%EDGE_ONINTERFACE(I)==1 .AND. SURFACE_CASE%EDGE_ONINTERFACE(I2)==0) ) THEN
+            !IF(SURFACE_CASE%EDGE_ONINTERFACE(I)==1 ) THEN
+                CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CASE%SURFACE_POINTS(:,SURFACE_CASE%SURFACE_EDGES(1,I)),0,PHI1)
+                CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CASE%SURFACE_POINTS(:,SURFACE_CASE%SURFACE_EDGES(1,I)),1,PHI2)
+                
+                CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CASE%SURFACE_POINTS(:,SURFACE_CASE%SURFACE_EDGES(2,I)),0,PHI3)
+                CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CASE%SURFACE_POINTS(:,SURFACE_CASE%SURFACE_EDGES(2,I)),1,PHI4)
+                
+                IF((ABS(PHI1)<ABS(PHI2) .AND. ABS(PHI3)<ABS(PHI4)) .OR.(ABS(PHI2)>SURFACE_CASE%MESH_SIZE/2. .OR. ABS(PHI4)>SURFACE_CASE%MESH_SIZE/2.)) THEN
+                    TEMP_ONINTERFACE(I) = 0
+                ELSE
+                    TEMP_ONINTERFACE(I) = 1
+                END IF
+            ELSE
+                TEMP_ONINTERFACE(I) = SURFACE_CASE%EDGE_ONINTERFACE(I)
+            END IF
+        END DO
+        
+        DO I = 1, SURFACE_CASE%SURFACE_EDGES_NUM
+            IF(SURFACE_CASE%EDGE_ONINTERFACE(I) .NE. TEMP_ONINTERFACE(I)) THEN
+                FLAG = .TRUE.
+            END IF
+            
+            SURFACE_CASE%EDGE_ONINTERFACE(I) = TEMP_ONINTERFACE(I)
+        END DO
+        
+        DEALLOCATE(TEMP_ONINTERFACE)
+    
+    END SUBROUTINE UPDATE_CASE_INTERFACE
+    
+    SUBROUTINE FIND_CASE_INTERFACE(FLAG)
+        IMPLICIT NONE
+        LOGICAL :: FLAG
+        
+        REAL(8) :: PHI1, PHI2, PHI3, PHI4
+        
+        INTEGER :: I, I1,I2
+        INTEGER, ALLOCATABLE :: TEMP_ONINTERFACE(:)
+        
+        FLAG = .FALSE.
+        
+        ALLOCATE(TEMP_ONINTERFACE(SURFACE_CASE%SURFACE_EDGES_NUM))
+        
+        DO I = 1, SURFACE_CASE%SURFACE_EDGES_NUM
+            I1 = SURFACE_CASE%POINT_EDGE_CONNECTION(1,SURFACE_CASE%SURFACE_EDGES(1,I))
+            I2 = SURFACE_CASE%POINT_EDGE_CONNECTION(2,SURFACE_CASE%SURFACE_EDGES(2,I))
+            IF(SURFACE_CASE%EDGE_ONINTERFACE(I).NE.-1) THEN
+                CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CASE%SURFACE_POINTS(:,SURFACE_CASE%SURFACE_EDGES(1,I)),0,PHI1)
+                CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CASE%SURFACE_POINTS(:,SURFACE_CASE%SURFACE_EDGES(1,I)),1,PHI2)
+                
+                CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CASE%SURFACE_POINTS(:,SURFACE_CASE%SURFACE_EDGES(2,I)),0,PHI3)
+                CALL DISTANCE_SURFACE_POINT_TYPE(SURFACE_CASE%SURFACE_POINTS(:,SURFACE_CASE%SURFACE_EDGES(2,I)),1,PHI4)
+                
+                IF((ABS(PHI1)<ABS(PHI2) .AND. ABS(PHI3)<ABS(PHI4)) .OR.(ABS(PHI2)>SURFACE_CASE%MESH_SIZE/2. .OR. ABS(PHI4)>SURFACE_CASE%MESH_SIZE/2.)) THEN
+                    TEMP_ONINTERFACE(I) = 0
+                ELSE
+                    TEMP_ONINTERFACE(I) = 1
+                END IF
+            ELSE
+                TEMP_ONINTERFACE(I) = SURFACE_CASE%EDGE_ONINTERFACE(I)
+            END IF
+        END DO
+        
+        DO I = 1, SURFACE_CASE%SURFACE_EDGES_NUM
+            IF(SURFACE_CASE%EDGE_ONINTERFACE(I) .NE. TEMP_ONINTERFACE(I)) THEN
+                FLAG = .TRUE.
+            END IF
+            
+            SURFACE_CASE%EDGE_ONINTERFACE(I) = TEMP_ONINTERFACE(I)
+        END DO
+        
+        DEALLOCATE(TEMP_ONINTERFACE)
+    
+    END SUBROUTINE FIND_CASE_INTERFACE
+
+    SUBROUTINE FIND_RELATEDPT(TYP1, TYP2, RMIN_MAX)
+	IMPLICIT NONE
+        INTEGER :: TYP1, TYP2
+        
+        INTEGER :: I,J,K, I1,I2
+        
+        REAL(8) :: R
+        
+        INTEGER :: JMIN
+        REAL(8) :: RMIN, RMIN_MAX
+        
+        LOGICAL, ALLOCATABLE :: POINT_USED(:)
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT1, SURFACE_CURRENT2
+        
+        IF (TYP1==0) THEN
+            SURFACE_CURRENT1 => SURFACE_FLUID
+        END IF
+        IF (TYP1==1) THEN
+            SURFACE_CURRENT1 => SURFACE_PROPEL
+        END IF
+        IF (TYP1==2) THEN
+            SURFACE_CURRENT1 => SURFACE_CASE
+        END IF
+        
+        IF (TYP2==0) THEN
+            SURFACE_CURRENT2 => SURFACE_FLUID
+        END IF
+        IF (TYP2==1) THEN
+            SURFACE_CURRENT2 => SURFACE_PROPEL
+        END IF
+        IF (TYP2==2) THEN
+            SURFACE_CURRENT2 => SURFACE_CASE
+        END IF
+        
+	!$OMP PARALLEL DO PRIVATE(I)
+        DO I=1, SURFACE_CURRENT1%SURFACE_POINTS_NUM
+            K = TYP2 + 1
+            SURFACE_CURRENT1%POINT_RELATEDPT(K,I) = 0
+        END DO
+        !$OMP END PARALLEL DO
+        
+	!!$OMP PARALLEL DO PRIVATE(I)
+        !DO I=1, SURFACE_CURRENT2%SURFACE_POINTS_NUM
+        !    K = TYP1 + 1
+        !    SURFACE_CURRENT2%POINT_RELATEDPT(K,I) = 0
+        !END DO
+        !!$OMP END PARALLEL DO
+        
+        ALLOCATE(POINT_USED(SURFACE_CURRENT2%SURFACE_POINTS_NUM))
+        
+        POINT_USED(:) = .FALSE.
+      
+        DO I=1, SURFACE_CURRENT1%SURFACE_POINTS_NUM
+            K = TYP2 + 1
+            I1 = SURFACE_CURRENT1%POINT_EDGE_CONNECTION(1,I)
+            I2 = SURFACE_CURRENT1%POINT_EDGE_CONNECTION(2,I)
+            
+            IF(SURFACE_CURRENT1%EDGE_ONINTERFACE(I1)==TYP2 .OR. SURFACE_CURRENT1%EDGE_ONINTERFACE(I2)==TYP2) THEN
+                JMIN = 0
+                RMIN = MAX(DOMAIN_MAX(1)-DOMAIN_MIN(1), DOMAIN_MAX(2)-DOMAIN_MIN(2))
+                
+                DO J=1,SURFACE_CURRENT2%SURFACE_POINTS_NUM
+                    !IF(.NOT. POINT_USED(J)) THEN
+                        R = SQRT(DOT_PRODUCT(SURFACE_CURRENT2%SURFACE_POINTS(:,J)-SURFACE_CURRENT1%SURFACE_POINTS(:,I),SURFACE_CURRENT2%SURFACE_POINTS(:,J)-SURFACE_CURRENT1%SURFACE_POINTS(:,I)))
+                        IF(R<RMIN) THEN
+                            RMIN = R
+                            JMIN = J
+                        END IF
+                    !END IF
+                END DO
+                
+                IF(RMIN < RMIN_MAX) THEN
+                    K = TYP2 + 1
+                    SURFACE_CURRENT1%POINT_RELATEDPT(K,I) = JMIN
+                    !K = TYP1 + 1
+                    !SURFACE_CURRENT2%POINT_RELATEDPT(K,JMIN) = I
+                    
+                    !POINT_USED(JMIN) = .TRUE.
+                END IF
+            END IF
+        END DO
+        
+        DEALLOCATE(POINT_USED)
+        
+    END SUBROUTINE FIND_RELATEDPT
+
+    SUBROUTINE FIND_RELATEDEDGE(TYP1, TYP2, ISPROJ)
+	IMPLICIT NONE
+        INTEGER :: TYP1, TYP2
+        
+        INTEGER :: I,J,K, I1,I2, K1,K2, K11, K22, K12, K21
+        
+        REAL(8) :: R, D1, D2, INNER, INNER2
+        REAL(8) :: ZETA1, ZETA2, ALPHA
+        INTEGER :: JMIN
+        REAL(8) :: RMIN, DIST1, DIST2, POINTDIST
+	REAL(8) :: NEWPOINT(2),V(2), V1(2), V2(2), W1(2),W2(2),A1(2), A2(2),L(2)
+	!REAL(8) :: TEMPPOINT1(2), TEMPPOINT2(2)
+
+	INTEGER :: RING_NUM, POLY_ORDER
+	LOGICAL :: FLAG, FLAG2
+	LOGICAL :: ISPROJ
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT1, SURFACE_CURRENT2
+        
+        IF (TYP1==0) THEN
+            SURFACE_CURRENT1 => SURFACE_FLUID
+        END IF
+        IF (TYP1==1) THEN
+            SURFACE_CURRENT1 => SURFACE_PROPEL
+        END IF
+        IF (TYP1==2) THEN
+            SURFACE_CURRENT1 => SURFACE_CASE
+        END IF
+        
+        IF (TYP2==0) THEN
+            SURFACE_CURRENT2 => SURFACE_FLUID
+        END IF
+        IF (TYP2==1) THEN
+            SURFACE_CURRENT2 => SURFACE_PROPEL
+        END IF
+        IF (TYP2==2) THEN
+            SURFACE_CURRENT2 => SURFACE_CASE
+        END IF
+        
+        K = TYP2 + 1
+	!$OMP PARALLEL DO PRIVATE(I)
+        DO I=1, SURFACE_CURRENT1%SURFACE_POINTS_NUM
+            SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I) = 0
+        END DO
+        !$OMP END PARALLEL DO
+            
+        DO I=1, SURFACE_CURRENT1%SURFACE_POINTS_NUM
+            I1 = SURFACE_CURRENT1%POINT_EDGE_CONNECTION(1,I)
+            I2 = SURFACE_CURRENT1%POINT_EDGE_CONNECTION(2,I)
+            
+            IF(SURFACE_CURRENT1%EDGE_ONINTERFACE(I1)==TYP2 .OR. SURFACE_CURRENT1%EDGE_ONINTERFACE(I2)==TYP2) THEN
+                JMIN = 0
+                RMIN = MAX(DOMAIN_MAX(1)-DOMAIN_MIN(1), DOMAIN_MAX(2)-DOMAIN_MIN(2))
+                
+                DO J=1,SURFACE_CURRENT2%SURFACE_EDGES_NUM
+                    CALL UNSIGNED_DISTANCE_EDGE_POINT(SURFACE_CURRENT1%SURFACE_POINTS(:,I),SURFACE_CURRENT2%SURFACE_POINTS(:,SURFACE_CURRENT2%SURFACE_EDGES(1,J)),SURFACE_CURRENT2%SURFACE_POINTS(:,SURFACE_CURRENT2%SURFACE_EDGES(2,J)),R)
+                    IF(R<RMIN) THEN
+                        RMIN = R
+                        JMIN = J
+                    END IF
+                END DO
+                
+                SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I) = JMIN
+                
+            END IF
+        END DO
+        
+!        DO I=1, SURFACE_CURRENT1%SURFACE_POINTS_NUM
+!            IF(SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I).NE.0) THEN
+!                J = SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I)
+!                
+!            END IF
+!        END DO
+        
+        IF(ISPROJ) THEN
+        
+	RING_NUM = 1
+	POLY_ORDER = 2
+
+        DO I=1, SURFACE_CURRENT1%SURFACE_POINTS_NUM
+            IF(SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I).NE.0) THEN
+	        ZETA2 = -1.
+                
+                J = SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I)
+		I1 = SURFACE_CURRENT2%SURFACE_EDGES(1,J)
+		I2 = SURFACE_CURRENT2%SURFACE_EDGES(2,J)
+
+		if (typ1==1 .and. typ2==0 .and. SURFACE_CURRENT1%POINT_TYPE(i)==3) then
+			V = SURFACE_CURRENT1%SURFACE_POINTS(:,I)
+			W1 = SURFACE_CURRENT2%SURFACE_POINTS(:,I1)
+			W2 = SURFACE_CURRENT2%SURFACE_POINTS(:,I2)
+
+				DIST1 = SQRT(DOT_PRODUCT(V-W1,V-W1))
+				DIST2 = SQRT(DOT_PRODUCT(V-W2,V-W2))
+				    
+				IF(DIST1 < DIST2) THEN
+				    A1 = W1
+				    A2 = W2
+				    
+				    POINTDIST = DIST1
+				    FLAG = .FALSE.
+				ELSE
+				    A1 = W2
+				    A2 = W1
+				    
+				    POINTDIST = DIST2
+				    FLAG = .TRUE.
+				END IF
+		
+				INNER = DOT_PRODUCT(A1-V,A2-A1)
+			    
+				IF(INNER>0 .and. INNER<SURFACE_FLUID%MESH_SIZE/1000.) THEN
+				    V = A1
+				    IF(FLAG) THEN
+				    ZETA1 = 1.
+				    ELSE
+				    ZETA1 = 0.
+				    END IF
+				ELSE IF(INNER>0 .AND. INNER>SURFACE_FLUID%MESH_SIZE/100.) THEN
+				    WRITE(*,*) '(ERR0R) PROJECTION_EDGE_POINT : OUTSIDE'
+				ELSE 
+				    L = A2-A1
+				    ALPHA = SQRT(DOT_PRODUCT(L,L))
+				    L = L/ALPHA
+				    INNER2 = DOT_PRODUCT(V-A1,L)
+
+				    IF(FLAG) THEN
+				    ZETA1 = 1-INNER2/ALPHA
+				    ELSE
+				    ZETA1 = INNER2/ALPHA
+				    END IF
+
+				END IF
+		elseif(TYP1 == 2 .AND. TYP2 == 0 .AND. (SURFACE_CURRENT2%EDGE_ABLATION_FLAG(J) .NE. -2)) then
+
+		else
+			
+        
+                        CALL PROJECTION_EDGE_POINT(SURFACE_CURRENT1%SURFACE_POINTS(:,I),SURFACE_CURRENT2%SURFACE_POINTS(:,I1),SURFACE_CURRENT2%SURFACE_POINTS(:,I2),ZETA1)
+			D1 = DOT_PRODUCT(SURFACE_CURRENT1%SURFACE_POINTS(:,I)-SURFACE_CURRENT2%SURFACE_POINTS(:,I1),SURFACE_CURRENT1%SURFACE_POINTS(:,I)-SURFACE_CURRENT2%SURFACE_POINTS(:,I1))
+			D2 = DOT_PRODUCT(SURFACE_CURRENT1%SURFACE_POINTS(:,I)-SURFACE_CURRENT2%SURFACE_POINTS(:,I2),SURFACE_CURRENT1%SURFACE_POINTS(:,I)-SURFACE_CURRENT2%SURFACE_POINTS(:,I2))
+			!if(typ1 .ne. typ2) then
+			!	ZETA1 = 1-ZETA1
+			!end if
+		end if 
+
+		IF(TYP2 .EQ. 2 .AND. SURFACE_CURRENT2%POINT_TYPE(I1) .EQ. 2 .AND. SURFACE_CURRENT2%POINT_TYPE(I2) .EQ. 2) THEN
+		    FLAG2 = .FALSE.
+		    K1 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,I1)
+		    K2 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,I2)
+		    K11 = SURFACE_CURRENT2%SURFACE_EDGES(1,K1)
+		    K12 = SURFACE_CURRENT2%SURFACE_EDGES(2,K1)
+		    K21 = SURFACE_CURRENT2%SURFACE_EDGES(1,K2)
+		    K22 = SURFACE_CURRENT2%SURFACE_EDGES(2,K2)
+		    IF(SURFACE_CURRENT2%POINT_TYPE(K11) .NE. 1 .AND. SURFACE_CURRENT2%POINT_TYPE(K22) .EQ. 1) THEN
+		       ZETA2 = 0.
+		       V1 = SURFACE_CURRENT2%SURFACE_POINTS(:,K12) - SURFACE_CURRENT2%SURFACE_POINTS(:,K11)
+		       V2 = SURFACE_CURRENT2%SURFACE_POINTS(:,I2) - SURFACE_CURRENT2%SURFACE_POINTS(:,I1)
+		       IF(ABS(DOT_PRODUCT(V1,V2)/SQRT(DOT_PRODUCT(V1,V1)*DOT_PRODUCT(V2,V2)))>0.17) THEN
+			FLAG2 = .TRUE.
+		       END IF
+		    ELSEIF(SURFACE_CURRENT2%POINT_TYPE(K11) .EQ. 1 .AND. SURFACE_CURRENT2%POINT_TYPE(K22) .NE. 1) THEN
+		       ZETA2 = 1.
+		       V1 = SURFACE_CURRENT2%SURFACE_POINTS(:,K21) - SURFACE_CURRENT2%SURFACE_POINTS(:,K22)
+		       V2 = SURFACE_CURRENT2%SURFACE_POINTS(:,I2) - SURFACE_CURRENT2%SURFACE_POINTS(:,I1)
+		       IF(ABS(DOT_PRODUCT(V1,V2)/SQRT(DOT_PRODUCT(V1,V1)*DOT_PRODUCT(V2,V2))>0.17)) THEN
+			FLAG2 = .TRUE.
+		       END IF
+		    ELSE
+		    END IF
+
+		    IF(FLAG2 .AND. (SURFACE_CURRENT2%POINT_TYPE(K11) .NE. 1 .OR. SURFACE_CURRENT2%POINT_TYPE(K22) .NE. 1)) THEN
+	 	       CALL RECONSTRUCTING_HIGH_ORDER_SURFACE(SURFACE_CURRENT2%SURFACE_POINTS, SURFACE_CURRENT2%SURFACE_EDGES, SURFACE_CURRENT2%POINT_EDGE_CONNECTION, J, POLY_ORDER, RING_NUM, ZETA1, ZETA2, NEWPOINT)
+		       SURFACE_CURRENT1%SURFACE_POINTS(:,I) = NEWPOINT
+		    END IF
+		END IF
+                
+            END IF
+        END DO
+        
+        END IF
+        
+    END SUBROUTINE FIND_RELATEDEDGE
+    
+    SUBROUTINE UPDATE_RELATEDEDGE(TYP1, TYP2, ISPROJ)
+	IMPLICIT NONE
+        INTEGER :: TYP1, TYP2
+        
+        INTEGER :: I,J,K,M, I1,I2, J1, J2, K1, K2, K11, K12, K21, K22
+        
+        REAL(8) :: R, ALPHA, DIST1, DIST2, POINTDIST, INNER, INNER2
+        
+        INTEGER :: JMIN
+        REAL(8) :: RMIN
+	REAL(8) :: ZETA1, ZETA2
+	REAL(8) :: NEWPOINT(2), V(2), W1(2), W2(2), A1(2), A2(2), L(2), V1(2), V2(2)
+        
+        INTEGER :: J0
+	INTEGER :: RING_NUM, POLY_ORDER
+
+	LOGICAL :: FLAG, FLAG2
+	LOGICAL :: ISPROJ
+        
+        TYPE(SURFACE_TYPE), POINTER :: SURFACE_CURRENT1, SURFACE_CURRENT2
+        
+        INTEGER, ALLOCATABLE :: TEMP_RELATEDEDGE(:)
+        
+        IF (TYP1==0) THEN
+            SURFACE_CURRENT1 => SURFACE_FLUID
+        END IF
+        IF (TYP1==1) THEN
+            SURFACE_CURRENT1 => SURFACE_PROPEL
+        END IF
+        IF (TYP1==2) THEN
+            SURFACE_CURRENT1 => SURFACE_CASE
+        END IF
+        
+        IF (TYP2==0) THEN
+            SURFACE_CURRENT2 => SURFACE_FLUID
+        END IF
+        IF (TYP2==1) THEN
+            SURFACE_CURRENT2 => SURFACE_PROPEL
+        END IF
+        IF (TYP2==2) THEN
+            SURFACE_CURRENT2 => SURFACE_CASE
+        END IF
+        
+        K = TYP2 + 1
+        
+        ALLOCATE(TEMP_RELATEDEDGE(SURFACE_CURRENT1%SURFACE_POINTS_NUM))
+        TEMP_RELATEDEDGE(:) = 0
+        
+        DO I=1, SURFACE_CURRENT1%SURFACE_POINTS_NUM
+            I1 = SURFACE_CURRENT1%POINT_EDGE_CONNECTION(1,I)
+            I2 = SURFACE_CURRENT1%POINT_EDGE_CONNECTION(2,I)
+            
+            IF(SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I).NE.0) THEN
+                JMIN = 0
+                RMIN = MAX(DOMAIN_MAX(1)-DOMAIN_MIN(1), DOMAIN_MAX(2)-DOMAIN_MIN(2))
+                
+                J0 = SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I)
+                
+                DO M=1,3
+                    IF(M==1) THEN
+                        J = J0
+                    ELSE IF(M==2) THEN
+                        J = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,SURFACE_CURRENT2%SURFACE_EDGES(1,J0))
+                    ELSE
+                        J = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,SURFACE_CURRENT2%SURFACE_EDGES(2,J0))
+                    END IF
+                    
+                    CALL UNSIGNED_DISTANCE_EDGE_POINT(SURFACE_CURRENT1%SURFACE_POINTS(:,I),SURFACE_CURRENT2%SURFACE_POINTS(:,SURFACE_CURRENT2%SURFACE_EDGES(1,J)),SURFACE_CURRENT2%SURFACE_POINTS(:,SURFACE_CURRENT2%SURFACE_EDGES(2,J)),R)
+                    IF(R<RMIN) THEN
+                        RMIN = R
+                        JMIN = J
+                    END IF
+                END DO
+                
+                TEMP_RELATEDEDGE(I) = JMIN
+                
+            END IF
+        END DO
+        
+        !$OMP PARALLEL DO PRIVATE(I)
+        DO I=1, SURFACE_CURRENT1%SURFACE_POINTS_NUM
+            SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I) = TEMP_RELATEDEDGE(I)
+        END DO
+        !$OMP END PARALLEL DO
+        
+        DEALLOCATE(TEMP_RELATEDEDGE)
+        
+        
+        IF(ISPROJ) THEN
+        
+	RING_NUM = 1
+	POLY_ORDER = 2
+
+        !$OMP PARALLEL DO PRIVATE(I,J)
+        DO I=1, SURFACE_CURRENT1%SURFACE_POINTS_NUM
+
+            IF(SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I).NE.0) THEN
+	        ZETA2 = -1.
+                
+                J = SURFACE_CURRENT1%POINT_RELATEDEDGE(K,I)
+		J1 = SURFACE_CURRENT1%POINT_EDGE_CONNECTION(1,I)
+		J2 = SURFACE_CURRENT1%POINT_EDGE_CONNECTION(2,I)
+		I1 = SURFACE_CURRENT2%SURFACE_EDGES(1,J)
+		I2 = SURFACE_CURRENT2%SURFACE_EDGES(2,J)
+
+		if ((typ1==1 .and. typ2==0 .and. SURFACE_CURRENT1%POINT_TYPE(i)==3) .OR. (TYP1 == 0 .AND. TYP2 == 2 .AND. (SURFACE_CURRENT1%EDGE_ABLATION_FLAG(J1) == -2 .OR. SURFACE_CURRENT1%EDGE_ABLATION_FLAG(J2) == -2))) then
+			V = SURFACE_CURRENT1%SURFACE_POINTS(:,I)
+			W1 = SURFACE_CURRENT2%SURFACE_POINTS(:,I1)
+			W2 = SURFACE_CURRENT2%SURFACE_POINTS(:,I2)
+
+				DIST1 = SQRT(DOT_PRODUCT(V-W1,V-W1))
+				DIST2 = SQRT(DOT_PRODUCT(V-W2,V-W2))
+				    
+				IF(DIST1 < DIST2) THEN
+				    A1 = W1
+				    A2 = W2
+				    
+				    POINTDIST = DIST1
+				    FLAG = .FALSE.
+				ELSE
+				    A1 = W2
+				    A2 = W1
+				    
+				    POINTDIST = DIST2
+				    FLAG = .TRUE.
+				END IF
+		
+				INNER = DOT_PRODUCT(A1-V,A2-A1)
+			    
+				IF(INNER>0 .and. INNER<SURFACE_FLUID%MESH_SIZE/1000.) THEN
+				    V = A1
+				    IF(FLAG) THEN
+				    ZETA1 = 1.
+				    ELSE
+				    ZETA1 = 0.
+				    END IF
+				ELSE IF(INNER>0 .AND. INNER>SURFACE_FLUID%MESH_SIZE/100.) THEN
+				    WRITE(*,*) '(ERR0R) PROJECTION_EDGE_POINT : OUTSIDE'
+				ELSE 
+				    L = A2-A1
+				    ALPHA = SQRT(DOT_PRODUCT(L,L))
+				    L = L/ALPHA
+				    INNER2 = DOT_PRODUCT(V-A1,L)
+
+				    IF(FLAG) THEN
+				    ZETA1 = 1-INNER2/ALPHA
+				    ELSE
+				    ZETA1 = INNER2/ALPHA
+				    END IF
+
+				END IF
+		elseif(TYP1 == 2 .AND. TYP2 == 0 .AND. (SURFACE_CURRENT2%EDGE_ABLATION_FLAG(J) .NE. -2)) then
+		
+		else
+
+			CALL PROJECTION_EDGE_POINT(SURFACE_CURRENT1%SURFACE_POINTS(:,I),SURFACE_CURRENT2%SURFACE_POINTS(:,I1),SURFACE_CURRENT2%SURFACE_POINTS(:,I2),ZETA1)
+		end if
+
+		IF(TYP2 .EQ. 2 .AND. SURFACE_CURRENT2%POINT_TYPE(I1) .EQ. 2 .AND. SURFACE_CURRENT2%POINT_TYPE(I2) .EQ. 2) THEN
+!		    K1 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,I1)
+!		    K2 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,I2)
+!		    IF(SURFACE_CURRENT2%POINT_TYPE(SURFACE_CURRENT2%SURFACE_EDGES(1,K1)) .NE. 1 .AND. SURFACE_CURRENT2%POINT_TYPE(SURFACE_CURRENT2%SURFACE_EDGES(2,K2)) .EQ. 1) THEN
+!		    ZETA2 = 0.
+!		    ELSEIF(SURFACE_CURRENT2%POINT_TYPE(SURFACE_CURRENT2%SURFACE_EDGES(1,K1)) .EQ. 1 .AND. SURFACE_CURRENT2%POINT_TYPE(SURFACE_CURRENT2%SURFACE_EDGES(2,K2)) .NE. 1) THEN
+!		    ZETA2 = 1.
+!		    ELSE
+!		    END IF
+
+!		    IF(SURFACE_CURRENT2%POINT_TYPE(SURFACE_CURRENT2%SURFACE_EDGES(1,K1)) .NE. 1 .OR. SURFACE_CURRENT2%POINT_TYPE(SURFACE_CURRENT2%SURFACE_EDGES(2,K2)) .NE. 1) THEN
+!	 	       CALL RECONSTRUCTING_HIGH_ORDER_SURFACE(SURFACE_CURRENT2%SURFACE_POINTS, SURFACE_CURRENT2%SURFACE_EDGES, SURFACE_CURRENT2%POINT_EDGE_CONNECTION, J, POLY_ORDER, RING_NUM, ZETA1, ZETA2, NEWPOINT)
+!		       SURFACE_CURRENT1%SURFACE_POINTS(:,I) = NEWPOINT
+!		    END IF
+		    FLAG2 = .FALSE.
+		    K1 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(1,I1)
+		    K2 = SURFACE_CURRENT2%POINT_EDGE_CONNECTION(2,I2)
+		    K11 = SURFACE_CURRENT2%SURFACE_EDGES(1,K1)
+		    K12 = SURFACE_CURRENT2%SURFACE_EDGES(2,K1)
+		    K21 = SURFACE_CURRENT2%SURFACE_EDGES(1,K2)
+		    K22 = SURFACE_CURRENT2%SURFACE_EDGES(2,K2)
+		    IF(SURFACE_CURRENT2%POINT_TYPE(K11) .NE. 1 .AND. SURFACE_CURRENT2%POINT_TYPE(K22) .EQ. 1) THEN
+		       ZETA2 = 0.
+		       V1 = SURFACE_CURRENT2%SURFACE_POINTS(:,K12) - SURFACE_CURRENT2%SURFACE_POINTS(:,K11)
+		       V2 = SURFACE_CURRENT2%SURFACE_POINTS(:,I2) - SURFACE_CURRENT2%SURFACE_POINTS(:,I1)
+		       IF(ABS(DOT_PRODUCT(V1,V2)/SQRT(DOT_PRODUCT(V1,V1)*DOT_PRODUCT(V2,V2)))>0.17) THEN
+			FLAG2 = .TRUE.
+		       END IF
+		    ELSEIF(SURFACE_CURRENT2%POINT_TYPE(K11) .EQ. 1 .AND. SURFACE_CURRENT2%POINT_TYPE(K22) .NE. 1) THEN
+		       ZETA2 = 1.
+		       V1 = SURFACE_CURRENT2%SURFACE_POINTS(:,K21) - SURFACE_CURRENT2%SURFACE_POINTS(:,K22)
+		       V2 = SURFACE_CURRENT2%SURFACE_POINTS(:,I2) - SURFACE_CURRENT2%SURFACE_POINTS(:,I1)
+		       IF(ABS(DOT_PRODUCT(V1,V2)/SQRT(DOT_PRODUCT(V1,V1)*DOT_PRODUCT(V2,V2))>0.17)) THEN
+			FLAG2 = .TRUE.
+		       END IF
+		    ELSE
+		    END IF
+
+		    IF(FLAG2 .AND. (SURFACE_CURRENT2%POINT_TYPE(K11) .NE. 1 .OR. SURFACE_CURRENT2%POINT_TYPE(K22) .NE. 1)) THEN
+	 	       CALL RECONSTRUCTING_HIGH_ORDER_SURFACE(SURFACE_CURRENT2%SURFACE_POINTS, SURFACE_CURRENT2%SURFACE_EDGES, SURFACE_CURRENT2%POINT_EDGE_CONNECTION, J, POLY_ORDER, RING_NUM, ZETA1, ZETA2, NEWPOINT)
+		       SURFACE_CURRENT1%SURFACE_POINTS(:,I) = NEWPOINT
+		    END IF
+
+		END IF
+
+		!! NOZZLE SACKMA kkkk
+		if (typ1==2 .and. typ2==0 .and. SURFACE_CURRENT2%EDGE_ABLATION_FLAG(J) == -2) then
+			CALL PROJECTION_EDGE_POINT(SURFACE_CURRENT1%SURFACE_POINTS(:,I),SURFACE_CURRENT2%SURFACE_POINTS(:,SURFACE_CURRENT2%SURFACE_EDGES(1,J)),SURFACE_CURRENT2%SURFACE_POINTS(:,SURFACE_CURRENT2%SURFACE_EDGES(2,J)),ZETA1)
+		end if
+            END IF
+        END DO
+        !$OMP END PARALLEL DO
+        
+        END IF
+        
+    END SUBROUTINE UPDATE_RELATEDEDGE
+    
+    !! MODIFIED
+    SUBROUTINE SAVING_COEFFS_SURFACE_STRUCT(EDGE_LENGTH, CORNER_INDEX)
+	IMPLICIT NONE
+        INTEGER :: CORNER_INDEX(:)
+        REAL(8) :: EDGE_LENGTH(:)
+        INTEGER :: I, I1, I2, J1, J2
+        REAL(8) :: R1, R2
+        
+        INTEGER :: CURRENT_EDGE, INITIAL_EDGE
+        REAL(8) :: CLUSTER_LENGTH
+        REAL(8) :: CLUSTER_INITIAL_LENGTH
+        
+        LOGICAL :: B1, B2
+        INTEGER :: PATCH_NUM
+        INTEGER, ALLOCATABLE :: INITIAL_CURRENT_EDGES(:)
+        REAL(8) :: L,R
+        
+        INTEGER, ALLOCATABLE :: EDGE_CLUSTER(:)
+        INTEGER :: EDGE_CLUSTER_NUM
+        
+        INTEGER :: ITER
+        
+        DO I=1,SURFACE_PROPEL%SURFACE_POINTS_NUM
+            IF(SURFACE_PROPEL%POINT_TYPE(I)==1) THEN
+                CORNER_INDEX(I) = 1
+            ELSE IF(SURFACE_PROPEL%POINT_TYPE(I)==2) THEN
+                J1 = SURFACE_PROPEL%POINT_EDGE_CONNECTION(1,I)
+                J2 = SURFACE_PROPEL%POINT_EDGE_CONNECTION(2,I)
+                I1 = SURFACE_PROPEL%SURFACE_EDGES(1,J1)
+                I2 = SURFACE_PROPEL%SURFACE_EDGES(2,J2)
+                R1 = SQRT(DOT_PRODUCT(SURFACE_PROPEL%SURFACE_POINTS(:,I) - SURFACE_PROPEL%SURFACE_POINTS(:,I1), SURFACE_PROPEL%SURFACE_POINTS(:,I) - SURFACE_PROPEL%SURFACE_POINTS(:,I1)))
+                R2 = SQRT(DOT_PRODUCT(SURFACE_PROPEL%SURFACE_POINTS(:,I) - SURFACE_PROPEL%SURFACE_POINTS(:,I2), SURFACE_PROPEL%SURFACE_POINTS(:,I) - SURFACE_PROPEL%SURFACE_POINTS(:,I2)))
+                IF(SURFACE_PROPEL%POINT_TYPE(I1)==3 .AND. R1 < SURFACE_PROPEL%SURFACE_INITIAL_EDGE_LENGTH(J1)/1.3) THEN
+                    CORNER_INDEX(I) = 1
+                ELSE IF(SURFACE_PROPEL%POINT_TYPE(I2)==3 .AND. R2 < SURFACE_PROPEL%SURFACE_INITIAL_EDGE_LENGTH(J2)/1.3) THEN
+                    CORNER_INDEX(I) = 1
+                ELSE
+                    CORNER_INDEX(I) = 2
+                END IF
+            ELSE
+                CORNER_INDEX(I) = 2
+            END IF
+        END DO
+        
+        ALLOCATE(EDGE_CLUSTER(SURFACE_PROPEL%SURFACE_EDGES_NUM))
+        ALLOCATE(INITIAL_CURRENT_EDGES(100))
+        PATCH_NUM = 0
+        B1 = .TRUE.
+        DO WHILE(B1)
+           B1 = .FALSE.
+           DO I = 1, SURFACE_PROPEL%SURFACE_EDGES_NUM
+               IF(SURFACE_PROPEL%EDGE_LOCATION(I)==PATCH_NUM + 1) THEN
+                   PATCH_NUM = PATCH_NUM + 1
+                   INITIAL_CURRENT_EDGES(PATCH_NUM) = I
+                   B1 = .TRUE.
+                   EXIT
+               END IF
+           END DO
+        END DO
+        DO ITER = 1, PATCH_NUM
+            CURRENT_EDGE = INITIAL_CURRENT_EDGES(ITER)
+            
+            B1 = .TRUE.
+            DO WHILE(B1)
+                J1 = SURFACE_PROPEL%SURFACE_EDGES(1,CURRENT_EDGE)
+                I1 = SURFACE_PROPEL%POINT_EDGE_CONNECTION(1,J1)
+                
+                IF(CORNER_INDEX(J1)==2) THEN
+                    B1 = .FALSE.
+                END IF
+                !! END MODIFIED
+                
+                IF(B1) THEN
+                    CURRENT_EDGE = I1
+                END IF
+            END DO
+            
+            INITIAL_EDGE = CURRENT_EDGE
+            
+            B2 = .TRUE.
+            DO WHILE(B2)
+                
+                CLUSTER_LENGTH = 0.
+                CLUSTER_INITIAL_LENGTH = 0.
+                
+                EDGE_CLUSTER_NUM = 0
+                B1 = .TRUE.
+                DO WHILE(B1)
+                    EDGE_CLUSTER_NUM = EDGE_CLUSTER_NUM + 1
+                    EDGE_CLUSTER(EDGE_CLUSTER_NUM) = CURRENT_EDGE
+                    
+                    J1 = SURFACE_PROPEL%SURFACE_EDGES(1,CURRENT_EDGE)
+                    J2 = SURFACE_PROPEL%SURFACE_EDGES(2,CURRENT_EDGE)
+                    I2 = SURFACE_PROPEL%POINT_EDGE_CONNECTION(2,J2)
+                    
+                    L = SQRT(DOT_PRODUCT(SURFACE_PROPEL%SURFACE_POINTS(:,J1) - SURFACE_PROPEL%SURFACE_POINTS(:,J2), SURFACE_PROPEL%SURFACE_POINTS(:,J1) - SURFACE_PROPEL%SURFACE_POINTS(:,J2)))
+                    
+                    CLUSTER_LENGTH = CLUSTER_LENGTH + L
+                    CLUSTER_INITIAL_LENGTH = CLUSTER_INITIAL_LENGTH + SURFACE_PROPEL%SURFACE_INITIAL_EDGE_LENGTH(CURRENT_EDGE)
+                    
+                    IF(CORNER_INDEX(J2)==2) THEN
+                        B1 = .FALSE.
+                    END IF
+                    
+                    CURRENT_EDGE = I2
+                END DO
+                
+                R = MIN(CLUSTER_LENGTH / CLUSTER_INITIAL_LENGTH, 1.)
+                DO I=1,EDGE_CLUSTER_NUM
+                    EDGE_LENGTH(EDGE_CLUSTER(I)) = MAX(SURFACE_FLUID%MESH_SIZE_MAX * 1.5, SURFACE_PROPEL%SURFACE_INITIAL_EDGE_LENGTH(EDGE_CLUSTER(I)) * SQRT(R))
+                END DO
+                IF(EDGE_CLUSTER_NUM==1) THEN
+                    EDGE_LENGTH(EDGE_CLUSTER(1)) = CLUSTER_LENGTH
+                END IF
+                
+                IF(CURRENT_EDGE==INITIAL_EDGE) THEN
+                    B2 = .FALSE.
+                END IF
+            END DO
+        END DO
+        
+        DEALLOCATE(INITIAL_CURRENT_EDGES)
+        DEALLOCATE(EDGE_CLUSTER)
+        
+    END SUBROUTINE SAVING_COEFFS_SURFACE_STRUCT
+    
+    SUBROUTINE LOADING_COEFFS_SURFACE_STRUCT(NEW_PROPEL_POINT_NUM, NEW_PROPEL_POINT, NEW_PROPEL_EDGE_NUM, NEW_PROPEL_EDGE, NEW_PROPEL_LOC, NEW_PROPEL_ONINTERFACE, NEW_PROPEL_CONNECTION)
+        IMPLICIT NONE
+        INTEGER :: NEW_PROPEL_POINT_NUM
+        REAL(8) :: NEW_PROPEL_POINT(2,NEW_PROPEL_POINT_NUM)
+        INTEGER :: NEW_PROPEL_EDGE_NUM
+        INTEGER :: NEW_PROPEL_EDGE(2,NEW_PROPEL_EDGE_NUM)
+        INTEGER :: NEW_PROPEL_LOC(NEW_PROPEL_EDGE_NUM)
+        
+        INTEGER :: NEW_PROPEL_CONNECTION(:,:)
+        INTEGER :: NEW_PROPEL_ONINTERFACE(:)
+        
+        INTEGER, ALLOCATABLE :: CORNER_INDEX(:)
+        INTEGER, ALLOCATABLE :: NEW_CORNER_INDEX(:)
+        INTEGER :: I, J, I1, I2, J1, J2
+        REAL(8) :: R1, R2, RMIN
+        
+        INTEGER :: CURRENT_EDGE, INITIAL_EDGE
+        INTEGER :: BEFORE_ONINTERFACE
+        INTEGER :: AFTER_ONINTERFACE
+        
+        LOGICAL :: B1, B2
+        INTEGER :: PATCH_NUM
+        INTEGER, ALLOCATABLE :: INITIAL_CURRENT_EDGES(:)
+        
+        INTEGER, ALLOCATABLE :: EDGE_CLUSTER(:)
+        INTEGER :: EDGE_CLUSTER_NUM
+        
+        INTEGER :: ITER
+        
+        ALLOCATE(CORNER_INDEX(SURFACE_PROPEL%SURFACE_POINTS_NUM))
+        DO I=1,SURFACE_PROPEL%SURFACE_POINTS_NUM
+            IF(SURFACE_PROPEL%POINT_TYPE(I)==1) THEN
+                CORNER_INDEX(I) = 1
+            ELSE IF(SURFACE_PROPEL%POINT_TYPE(I)==2) THEN
+                J1 = SURFACE_PROPEL%POINT_EDGE_CONNECTION(1,I)
+                J2 = SURFACE_PROPEL%POINT_EDGE_CONNECTION(2,I)
+                I1 = SURFACE_PROPEL%SURFACE_EDGES(1,J1)
+                I2 = SURFACE_PROPEL%SURFACE_EDGES(2,J2)
+                R1 = SQRT(DOT_PRODUCT(SURFACE_PROPEL%SURFACE_POINTS(:,I) - SURFACE_PROPEL%SURFACE_POINTS(:,I1), SURFACE_PROPEL%SURFACE_POINTS(:,I) - SURFACE_PROPEL%SURFACE_POINTS(:,I1)))
+                R2 = SQRT(DOT_PRODUCT(SURFACE_PROPEL%SURFACE_POINTS(:,I) - SURFACE_PROPEL%SURFACE_POINTS(:,I2), SURFACE_PROPEL%SURFACE_POINTS(:,I) - SURFACE_PROPEL%SURFACE_POINTS(:,I2)))
+                IF(SURFACE_PROPEL%POINT_TYPE(I1)==3 .AND. R1 < SURFACE_PROPEL%SURFACE_INITIAL_EDGE_LENGTH(J1)/1.3) THEN
+                    CORNER_INDEX(I) = 1
+                ELSE IF(SURFACE_PROPEL%POINT_TYPE(I2)==3 .AND. R2 < SURFACE_PROPEL%SURFACE_INITIAL_EDGE_LENGTH(J2)/1.3) THEN
+                    CORNER_INDEX(I) = 1
+                ELSE
+                    CORNER_INDEX(I) = 2
+                END IF
+            ELSE
+                CORNER_INDEX(I) = 2
+            END IF
+        END DO
+        
+        ALLOCATE(NEW_CORNER_INDEX(NEW_PROPEL_POINT_NUM))
+        NEW_CORNER_INDEX(:) = 0
+        DO I=1,SURFACE_PROPEL%SURFACE_POINTS_NUM
+            IF(CORNER_INDEX(I)==2) THEN
+                RMIN = MAX(DOMAIN_MAX(1)-DOMAIN_MIN(1), DOMAIN_MAX(2)-DOMAIN_MIN(2))
+                DO J=1,NEW_PROPEL_POINT_NUM
+                    IF(SQRT(DOT_PRODUCT(NEW_PROPEL_POINT(:,J) - SURFACE_PROPEL%SURFACE_POINTS(:,I), NEW_PROPEL_POINT(:,J) - SURFACE_PROPEL%SURFACE_POINTS(:,I))) < SURFACE_FLUID%MESH_SIZE/100.) THEN
+                        NEW_CORNER_INDEX(J) = I
+                        EXIT
+                    ELSE IF(SQRT(DOT_PRODUCT(NEW_PROPEL_POINT(:,J) - SURFACE_PROPEL%SURFACE_POINTS(:,I), NEW_PROPEL_POINT(:,J) - SURFACE_PROPEL%SURFACE_POINTS(:,I))) < RMIN) THEN
+                        RMIN = SQRT(DOT_PRODUCT(NEW_PROPEL_POINT(:,J) - SURFACE_PROPEL%SURFACE_POINTS(:,I), NEW_PROPEL_POINT(:,J) - SURFACE_PROPEL%SURFACE_POINTS(:,I)))
+                    END IF
+                END DO
+            END IF
+        END DO
+        
+        DO I=1,NEW_PROPEL_EDGE_NUM
+            NEW_PROPEL_CONNECTION(2,NEW_PROPEL_EDGE(1,I)) = I
+            NEW_PROPEL_CONNECTION(1,NEW_PROPEL_EDGE(2,I)) = I
+        END DO
+        
+        ALLOCATE(EDGE_CLUSTER(NEW_PROPEL_EDGE_NUM))
+        ALLOCATE(INITIAL_CURRENT_EDGES(100))
+        PATCH_NUM = 0
+        B1 = .TRUE.
+        DO WHILE(B1)
+           B1 = .FALSE.
+           DO I = 1, NEW_PROPEL_EDGE_NUM
+               IF(NEW_PROPEL_LOC(I)==PATCH_NUM + 1) THEN
+                   PATCH_NUM = PATCH_NUM + 1
+                   INITIAL_CURRENT_EDGES(PATCH_NUM) = I
+                   B1 = .TRUE.
+                   EXIT
+               END IF
+           END DO
+        END DO
+        DO ITER = 1, PATCH_NUM
+            CURRENT_EDGE = INITIAL_CURRENT_EDGES(ITER)
+            
+            B1 = .TRUE.
+            DO WHILE(B1)
+                J1 = NEW_PROPEL_EDGE(1,CURRENT_EDGE)
+                I1 = NEW_PROPEL_CONNECTION(1,J1)
+                
+                IF(NEW_CORNER_INDEX(J1) .NE. 0) THEN
+                    B1 = .FALSE.
+                END IF
+                !! END MODIFIED
+                
+                IF(B1) THEN
+                    CURRENT_EDGE = I1
+                END IF
+            END DO
+            
+            INITIAL_EDGE = CURRENT_EDGE
+            
+            B2 = .TRUE.
+            DO WHILE(B2)
+                
+                EDGE_CLUSTER_NUM = 0
+                J1 = NEW_PROPEL_EDGE(1,CURRENT_EDGE)
+                BEFORE_ONINTERFACE = SURFACE_PROPEL%EDGE_ONINTERFACE(SURFACE_PROPEL%POINT_EDGE_CONNECTION(2,NEW_CORNER_INDEX(J1)))
+                B1 = .TRUE.
+                DO WHILE(B1)
+                    EDGE_CLUSTER_NUM = EDGE_CLUSTER_NUM + 1
+                    EDGE_CLUSTER(EDGE_CLUSTER_NUM) = CURRENT_EDGE
+                    
+                    J1 = NEW_PROPEL_EDGE(1,CURRENT_EDGE)
+                    J2 = NEW_PROPEL_EDGE(2,CURRENT_EDGE)
+                    I2 = NEW_PROPEL_CONNECTION(2,J2)
+                    
+                    IF(NEW_CORNER_INDEX(J2) .NE. 0) THEN
+                        B1 = .FALSE.
+                    END IF
+                    
+                    CURRENT_EDGE = I2
+                END DO
+                J1 = NEW_PROPEL_EDGE(1,CURRENT_EDGE)
+                AFTER_ONINTERFACE = SURFACE_PROPEL%EDGE_ONINTERFACE(SURFACE_PROPEL%POINT_EDGE_CONNECTION(1,NEW_CORNER_INDEX(J1)))
+                
+                IF(BEFORE_ONINTERFACE==AFTER_ONINTERFACE) THEN
+                    DO I=1,EDGE_CLUSTER_NUM
+                        NEW_PROPEL_ONINTERFACE(EDGE_CLUSTER(I)) = BEFORE_ONINTERFACE
+                    END DO
+                ELSE
+write(*,*) 'errorerrorerror'
+                END IF
+                
+                IF(CURRENT_EDGE==INITIAL_EDGE) THEN
+                    B2 = .FALSE.
+                END IF
+            END DO
+        END DO
+        
+        DEALLOCATE(INITIAL_CURRENT_EDGES)
+        DEALLOCATE(EDGE_CLUSTER)
+        
+        DEALLOCATE(NEW_CORNER_INDEX)
+        DEALLOCATE(CORNER_INDEX)
+        
+    END SUBROUTINE LOADING_COEFFS_SURFACE_STRUCT
+    !! END MODIFIED
+
+    !! High_order_interface_reconstruction subroutines 
+
+       SUBROUTINE RECONSTRUCTING_HIGH_ORDER_SURFACE(POINT, EDGE, CONNECTION, EDGE_INDEX, POLY_ORDER, RING_NUM, zeta1, ZETA2, fitting_point)
+        IMPLICIT NONE
+        INTEGER :: EDGE_INDEX
+        INTEGER :: POLY_ORDER
+        INTEGER :: RING_NUM
+        REAL(8), ALLOCATABLE :: POINTS1(:,:)
+        REAL(8), ALLOCATABLE :: POINTS2(:,:)
+        REAL(8), ALLOCATABLE :: REPARA_POINTS1(:,:)
+        REAL(8), ALLOCATABLE :: REPARA_POINTS2(:,:)
+        INTEGER :: TEMP_INDEX1, TEMP_INDEX2
+        INTEGER :: I, M, N
+        REAL(8), DIMENSION(:,:) :: POINT
+        INTEGER, DIMENSION(:,:) :: EDGE
+        INTEGER, DIMENSION(:,:) :: CONNECTION
+        REAL(8) :: NEWPOINT(2), REPARA_NEWPOINT1(2), REPARA_NEWPOINT2(2)
+        real(8) :: fitting_point1(2), fitting_point2(2)
+        real(8), dimension(:) :: fitting_point
+        real(8) :: zeta1, ZETA2
+        
+        
+        
+        REAL(8) :: U(2)
+        REAL(8) :: V(2)
+        
+        
+    
+        
+        M = 2*RING_NUM+1
+        N = POLY_ORDER+1
+        
+        ALLOCATE(POINTS1(2,M), POINTS2(2,M))
+        !NEWPOINT = (POINT(:,EDGE(1,EDGE_INDEX)) + POINT(:,EDGE(2,EDGE_INDEX)))/2.0
+        
+        TEMP_INDEX1 = EDGE(1,EDGE_INDEX)
+        TEMP_INDEX2 = EDGE(1,EDGE_INDEX)
+        POINTS1(:, RING_NUM+1) = POINT(:, TEMP_INDEX1) - POINT(:,EDGE(1,EDGE_INDEX))
+        DO I = 1, RING_NUM
+            TEMP_INDEX1 = EDGE(1,CONNECTION(1,TEMP_INDEX1))
+            TEMP_INDEX2 = EDGE(2,CONNECTION(2,TEMP_INDEX2))
+            POINTS1(:,RING_NUM+1 - I) = POINT(:, TEMP_INDEX1) - POINT(:,EDGE(1,EDGE_INDEX))
+            POINTS1(:,RING_NUM+1 + I) = POINT(:, TEMP_INDEX2) - POINT(:,EDGE(1,EDGE_INDEX))
+        END DO
+        
+        TEMP_INDEX1 = EDGE(2,EDGE_INDEX)
+        TEMP_INDEX2 = EDGE(2,EDGE_INDEX)
+        POINTS2(:, RING_NUM+1) = POINT(:, TEMP_INDEX1) - POINT(:,EDGE(2,EDGE_INDEX))
+        DO I = 1, RING_NUM
+            TEMP_INDEX1 = EDGE(1,CONNECTION(1,TEMP_INDEX1))
+            TEMP_INDEX2 = EDGE(2,CONNECTION(2,TEMP_INDEX2))
+            POINTS2(:,RING_NUM+1 - I) = POINT(:, TEMP_INDEX1) - POINT(:,EDGE(2,EDGE_INDEX))
+            POINTS2(:,RING_NUM+1 + I) = POINT(:, TEMP_INDEX2) - POINT(:,EDGE(2,EDGE_INDEX))
+        END DO
+        
+        U = POINT(:,EDGE(1,EDGE_INDEX)) - POINT(:,EDGE(2,EDGE_INDEX))
+        U = U/SQRT(DOT_PRODUCT(U,U))
+        V(1) = -U(2)
+        V(2) = U(1)
+        
+        ALLOCATE(REPARA_POINTS1(2,M))
+        NEWPOINT = (POINT(:,EDGE(1,EDGE_INDEX))*(1-zeta1) + POINT(:,EDGE(2,EDGE_INDEX))*(zeta1)) -POINT(:,EDGE(1,EDGE_INDEX))
+        DO I = 1, M
+            REPARA_POINTS1(1,I) = DOT_PRODUCT(POINTS1(:,I), U)
+            REPARA_POINTS1(2,I) = DOT_PRODUCT(POINTS1(:,I), V)
+        END DO
+
+        REPARA_NEWPOINT1(1) = DOT_PRODUCT(NEWPOINT, U)
+        REPARA_NEWPOINT1(2) = DOT_PRODUCT(NEWPOINT, V)
+        fitting_point1 = REPARA_NEWPOINT1
+        CALL LOCAL_POLY_FITTING(REPARA_POINTS1, REPARA_NEWPOINT1, M, N, fitting_point1)
+
+        fitting_point1 = fitting_point1(1)*u + fitting_point1(2)*v + POINT(:,EDGE(1,EDGE_INDEX))
+
+        ALLOCATE(REPARA_POINTS2(2,M))
+        NEWPOINT = (POINT(:,EDGE(1,EDGE_INDEX))*(1-zeta1) + POINT(:,EDGE(2,EDGE_INDEX))*(zeta1)) -POINT(:,EDGE(2,EDGE_INDEX))
+
+        DO I = 1, M
+            REPARA_POINTS2(1,I) = DOT_PRODUCT(POINTS2(:,I), U)
+            REPARA_POINTS2(2,I) = DOT_PRODUCT(POINTS2(:,I), V)
+        END DO
+
+        REPARA_NEWPOINT2(1) = DOT_PRODUCT(NEWPOINT, U)
+        REPARA_NEWPOINT2(2) = DOT_PRODUCT(NEWPOINT, V)
+        fitting_point2 = REPARA_NEWPOINT2
+        CALL LOCAL_POLY_FITTING(REPARA_POINTS2, REPARA_NEWPOINT2, M, N, fitting_point2)
+
+        fitting_point2 = fitting_point2(1)*u + fitting_point2(2)*v + POINT(:,EDGE(2,EDGE_INDEX))
+
+	IF(ZETA2 .EQ. 0) THEN
+	fitting_point  = fitting_point1 
+	ELSEIF(ZETA2 .EQ. 1) THEN
+	fitting_point  = fitting_point2 
+	ELSE
+	fitting_point  = fitting_point1 * (1-zeta1) + fitting_point2 *(zeta1)
+	END IF
+
+        DEALLOCATE(POINTS1, POINTS2, REPARA_POINTS1, REPARA_POINTS2)
+
+    END SUBROUTINE RECONSTRUCTING_HIGH_ORDER_SURFACE
+    
+    
+    SUBROUTINE LOCAL_POLY_FITTING(POINTS, NEWPOINT, M, N, fitting_point)
+	IMPLICIT NONE
+        !INTEGER :: RING_NUM
+        REAL(8), DIMENSION(:,:) :: POINTS
+        REAL(8), DIMENSION(:) :: NEWPOINT
+        real(8), dimension(:) :: fitting_point
+        !REAL(8) :: U(2)
+        !REAL(8) :: V(2)
+        !REAL(8) :: TEMP_POINT1(2), TEMP_POINT2(2)
+        INTEGER :: I, J, M, N
+        REAL(8) :: TEMP
+        
+        REAL(8), ALLOCATABLE :: VANDERMONDE(:,:)
+        !REAL(8), ALLOCATABLE :: WEIGHT(:,:)
+        REAL(8), ALLOCATABLE :: X(:)
+        REAL(8), ALLOCATABLE :: F(:)
+        REAL(8), ALLOCATABLE :: B(:)
+        REAL(8), ALLOCATABLE :: WEIGHTING(:,:)
+        REAL(8), ALLOCATABLE :: NORMAL(:,:), TANGENT(:,:)
+        REAL(8) :: MESH_RESOL
+
+        REAL(8), ALLOCATABLE :: A(:,:)
+	!REAL(8) :: RES
+
+        ALLOCATE(VANDERMONDE(M, N), F(M), WEIGHTING(M,M))
+        WEIGHTING = 0.0
+        DO I = 1, M
+            F(I) = POINTS(2,I)
+            DO J = 1, N
+                VANDERMONDE(I,J) = POINTS(1,I)**(REAL(J-1))
+            END DO
+        END DO
+        
+        ALLOCATE(NORMAL(2,M), TANGENT(2,M))
+        DO I = 1, M-1
+            TANGENT(:,I) = POINTS(:,I) - POINTS(:,I+1)
+            TEMP = TANGENT(1,I)
+            TANGENT(1,I) = -TANGENT(2,I)
+            TANGENT(2,I) = TEMP
+        END DO
+        
+        DO I = 1, M
+            IF (I .EQ. 1) THEN
+                NORMAL(:,1) = TANGENT(:,1)/SQRT(DOT_PRODUCT(TANGENT(:,1),TANGENT(:,1)))
+            ELSE IF (I .EQ. M) THEN
+                NORMAL(:,M) = TANGENT(:,M-1)/SQRT(DOT_PRODUCT(TANGENT(:,M-1),TANGENT(:,M-1)))
+            ELSE
+                NORMAL(:,I) = (TANGENT(:,I-1)/SQRT(DOT_PRODUCT(TANGENT(:,I-1),TANGENT(:,I-1))) + TANGENT(:,I)/SQRT(DOT_PRODUCT(TANGENT(:,I),TANGENT(:,I))))/2.0
+            END IF
+        END DO
+        
+        DO J = 1, M
+            !MESH_RESOL = MIN(,)
+            MESH_RESOL = 1.0
+            WEIGHTING(J,J) = MAX(NORMAL(2,J),0.0)*EXP( -DOT_PRODUCT(NEWPOINT,NEWPOINT)/MESH_RESOL)
+        END DO
+        
+        ALLOCATE(A(N,N), X(N), B(N))
+        
+        A = MATMUL(TRANSPOSE(MATMUL(WEIGHTING,VANDERMONDE)),MATMUL(WEIGHTING,VANDERMONDE))
+        F = matmul(WEIGHTING,F)
+        B = matmul(TRANSPOSE(MATMUL(WEIGHTING,VANDERMONDE)),F)
+!write(*,*) 'before PCG'
+        CALL PCG_SOLVER(A,B, n, X)
+!write(*,*) 'after PCG'
+	!RES = SQRT(DOT_PRODUCT(A*X-B,A*X-B))
+                
+        do i = 1, n
+            fitting_point(2) = fitting_point(2) + x(i)*fitting_point(1)**(real(i-1))
+        end do
+      
+        
+        DEALLOCATE(VANDERMONDE, F, WEIGHTING, NORMAL, A, X, B)
+    END SUBROUTINE LOCAL_POLY_FITTING
+        
+    
+END MODULE
